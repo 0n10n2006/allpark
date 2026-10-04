@@ -17,7 +17,8 @@
     "db:seed": "node --env-file-if-exists=.env --import tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "worker": "node -e \"console.log('job runner not implemented')\"",
-    "setup:worktree": "node scripts/setup-worktree.mjs"
+    "setup:worktree": "node scripts/setup-worktree.mjs",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@auth/prisma-adapter": "2.11.3",
@@ -28,7 +29,7 @@
     "@prisma/client": "7.10.1",
     "class-variance-authority": "^0.7.1",
     "cloudinary": "2.11.0",
-    "cn": "^0.5.0",
+    "cn": "0.5.0",
     "date-fns": "4.4.0",
     "lucide-react": "1.58.0",
     "mapbox-gl": "3.33.0",
