@@ -1,7 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import pg from "pg";
 
 const taskId = process.argv[2];
 if (!taskId || !/^[a-z0-9_]+$/.test(taskId)) {
@@ -21,6 +20,7 @@ if (!adminUrl) {
 }
 const dbName = `parkshare_${taskId}`;
 const testName = `${dbName}_test`;
+const { default: pg } = await import("pg"); // after npm ci, so fresh worktrees work
 const client = new pg.Client({ connectionString: adminUrl });
 await client.connect();
 for (const name of [dbName, testName]) {
