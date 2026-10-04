@@ -31,5 +31,5 @@ export function rupeesToPaise(rupees: number): number {
     throw new RangeError("Rupee amount exceeds safe integer paise range");
   }
 
-  return paise;
+  return paise || 0; // normalize -0
 }
