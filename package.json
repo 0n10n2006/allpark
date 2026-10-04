@@ -14,7 +14,7 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:reset": "prisma migrate reset",
-    "db:seed": "tsx prisma/seed.ts",
+    "db:seed": "node --env-file-if-exists=.env --import tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "worker": "node -e \"console.log('job runner not implemented')\"",
     "setup:worktree": "node scripts/setup-worktree.mjs"

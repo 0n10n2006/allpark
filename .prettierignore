@@ -1,0 +1,5 @@
+src/generated/
+package-lock.json
+docs/
+*.docx
+.next/
