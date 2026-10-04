@@ -10,6 +10,7 @@ next-env.d.ts
 .env*.local
 .env.*
 !.env.example
+/src/generated/prisma/
 .vercel
 .DS_Store
 hello.txt

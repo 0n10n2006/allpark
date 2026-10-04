@@ -1,4 +1,8 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ParkShare
+
+## Local setup
+
+Install dependencies with `npm ci`. To configure an Orca worktree, put a PostgreSQL admin connection URL in `%USERPROFILE%/.parkshare/pg-admin-url` (or set `PARKSHARE_PG_ADMIN_URL`) and run `npm run setup:worktree -- <taskid>`; it creates isolated development and test databases and `.env` without printing credentials. Use `npm run dev`, `npm test`, `npm run test:e2e`, and the `db:*` scripts for development, tests, and Prisma operations.
 
 ## Getting Started
 
