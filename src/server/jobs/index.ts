@@ -1,6 +1,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/server/db";
 import { getRegisteredJob } from "./registry";
+import "./builtins";
 
 export type EnqueueOptions = {
   runAt?: Date;
