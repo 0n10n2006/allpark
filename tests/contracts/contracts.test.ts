@@ -17,7 +17,7 @@ const routeFile = (e: Endpoint) => path.join("src/app", e.path.replace(/:id/g, "
 // An endpoint is still a stub while its method is wired to notImplemented. Implementing
 // tasks replace that, and the 501 assertions below drop it automatically.
 const isStub = (e: Endpoint) =>
-  new RegExp(String.raw`export const ${e.method}\s*=\s*route\([^;]*notImplemented\s*\)`).test(
+  new RegExp(String.raw`export const ${e.method}\s*=\s*route\([^;]*notImplemented\s*,?\s*\)`).test(
     readFileSync(routeFile(e), "utf8"),
   );
 const stubs = endpoints.filter(isStub);
