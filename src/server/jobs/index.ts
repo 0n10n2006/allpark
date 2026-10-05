@@ -1,5 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/server/db";
+import { getRegisteredJob } from "./registry";
 
 export type EnqueueOptions = {
   runAt?: Date;
@@ -67,4 +68,72 @@ export async function claimDue(workerId: string, batchSize: number) {
     )
     RETURNING *
   `);
+}
+
+export type RunOnceResult = {
+  claimed: number;
+  succeeded: number;
+  retried: number;
+  dead: number;
+};
+
+const FAILURE_ERROR = "Job handler failed";
+const INVALID_PAYLOAD_ERROR = "Invalid job payload";
+const UNKNOWN_TYPE_ERROR = "Unknown job type";
+
+async function failJob(
+  id: string,
+  workerId: string,
+  error: string,
+): Promise<"retried" | "dead"> {
+  const rows = await db.$queryRaw<{ status: string }[]>(Prisma.sql`
+    UPDATE "Job"
+    SET
+      attempts = attempts + 1,
+      "lastError" = ${error.slice(0, 256)},
+      status = CASE WHEN attempts + 1 >= "maxAttempts" THEN 'DEAD'::"JobStatus" ELSE 'PENDING'::"JobStatus" END,
+      "runAt" = CASE
+        WHEN attempts + 1 >= "maxAttempts" THEN "runAt"
+        ELSE now() + LEAST(3600, 30 * power(2, attempts)) * interval '1 second'
+      END,
+      "lockedAt" = NULL,
+      "lockedBy" = NULL,
+      "updatedAt" = now()
+    WHERE id = ${id} AND status = 'RUNNING' AND "lockedBy" = ${workerId}
+    RETURNING status::text
+  `);
+  return rows[0]?.status === "DEAD" ? "dead" : "retried";
+}
+
+/** Runs a single durable queue batch. */
+export async function runOnce(workerId: string, batchSize = 10): Promise<RunOnceResult> {
+  const jobs = await claimDue(workerId, batchSize);
+  const result: RunOnceResult = { claimed: jobs.length, succeeded: 0, retried: 0, dead: 0 };
+
+  for (const job of jobs) {
+    const registered = getRegisteredJob(job.type);
+    if (!registered) {
+      result[await failJob(job.id, workerId, UNKNOWN_TYPE_ERROR)] += 1;
+      continue;
+    }
+
+    const parsed = registered.schema.safeParse(job.payload);
+    if (!parsed.success) {
+      result[await failJob(job.id, workerId, INVALID_PAYLOAD_ERROR)] += 1;
+      continue;
+    }
+
+    try {
+      await registered.handler(parsed.data);
+      const updated = await db.job.updateMany({
+        where: { id: job.id, status: "RUNNING", lockedBy: workerId },
+        data: { status: "SUCCEEDED", lockedAt: null, lockedBy: null, lastError: null },
+      });
+      result.succeeded += updated.count;
+    } catch {
+      result[await failJob(job.id, workerId, FAILURE_ERROR)] += 1;
+    }
+  }
+
+  return result;
 }
