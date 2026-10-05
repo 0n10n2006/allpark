@@ -1,7 +1,10 @@
 import { UpdatePreferencesBody } from "@/contracts";
 import { route } from "@/server/http/route";
-import { notImplemented } from "../../_lib/not-implemented";
+import { getPreferences, updatePreferences } from "@/server/users/users";
 
-// Stub (T2.0). Implemented by T2.5.
-export const GET = route({ auth: "user" }, notImplemented);
-export const PATCH = route({ auth: "user", body: UpdatePreferencesBody }, notImplemented);
+export const GET = route({ auth: "user" }, async ({ user }) =>
+  Response.json(await getPreferences(user.id)),
+);
+export const PATCH = route({ auth: "user", body: UpdatePreferencesBody }, async ({ user, body }) =>
+  Response.json(await updatePreferences(user.id, body)),
+);
