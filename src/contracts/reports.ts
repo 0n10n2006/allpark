@@ -5,6 +5,7 @@ import { IsoDateTime, Uuid } from "./common";
 // through a coordinator-owned migration.
 
 export const ReportTargetType = z.enum(["LISTING", "REVIEW", "USER", "BOOKING"]);
+export type ReportTargetType = z.infer<typeof ReportTargetType>;
 export const ReportCategory = z.enum([
   "ACCESS_PROBLEM",
   "SUSPICIOUS",
@@ -12,6 +13,7 @@ export const ReportCategory = z.enum([
   "INAPPROPRIATE",
   "OTHER",
 ]);
+export type ReportCategory = z.infer<typeof ReportCategory>;
 
 /** POST /api/reports */
 export const CreateReportBody = z.strictObject({

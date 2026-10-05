@@ -69,6 +69,7 @@ export type UpdateVehicleBody = z.infer<typeof UpdateVehicleBody>;
 
 /** DELETE /api/me/vehicles/:id */
 export const DeleteVehicleResponse = z.object({ deleted: z.literal(true) });
+export type DeleteVehicleResponse = z.infer<typeof DeleteVehicleResponse>;
 
 // ── Preferences and notification settings ──
 
@@ -95,8 +96,11 @@ export const UpdatePreferencesBody = z.strictObject({
 export type UpdatePreferencesBody = z.infer<typeof UpdatePreferencesBody>;
 
 /** POST /api/me/deletion-request. Records the request; deletion itself is an admin/ops process. */
-export const DeletionRequestBody = z.strictObject({
-  reason: z.string().trim().max(1000).optional(),
-});
+export const DeletionRequestBody = z
+  .strictObject({
+    reason: z.string().trim().max(1000).optional(),
+  })
+  .default({});
 export type DeletionRequestBody = z.infer<typeof DeletionRequestBody>;
 export const DeletionRequestResponse = z.object({ deletionRequestedAt: IsoDateTime });
+export type DeletionRequestResponse = z.infer<typeof DeletionRequestResponse>;

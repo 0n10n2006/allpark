@@ -6,7 +6,11 @@ import { IsoDateTime, Money, Paise, Uuid, page } from "./common";
 // `locality` + approxLat/approxLng. Address, exact coords, and access instructions
 // appear only on the owner/admin shapes here and on BookingAccessDetails (bookings.ts).
 
-export const ListingPhoto = z.object({ id: Uuid, url: z.url(), position: z.number().int().min(0) });
+export const ListingPhoto = z.strictObject({
+  id: Uuid,
+  url: z.url(),
+  position: z.number().int().min(0),
+});
 export type ListingPhoto = z.infer<typeof ListingPhoto>;
 
 /** Prices per rental type the listing offers; null = not offered. */
@@ -49,9 +53,9 @@ const publicFields = {
   prices: ListingPrices,
   minDurationMinutes: z.number().int().positive(),
   /** Policy key plus human-readable terms shown before payment (FR-10). */
-  cancellationPolicy: z.object({ key: z.string(), summary: z.string() }),
+  cancellationPolicy: z.strictObject({ key: z.string(), summary: z.string() }),
   photos: z.array(ListingPhoto),
-  host: z.object({ id: Uuid, name: z.string().nullable(), verified: z.boolean() }),
+  host: z.strictObject({ id: Uuid, name: z.string().nullable(), verified: z.boolean() }),
   rating: z.object({
     average: z.number().min(1).max(5).nullable(),
     count: z.number().int().min(0),
@@ -153,7 +157,8 @@ export const PublishListingBody = z.strictObject({ attestAuthority: z.literal(tr
 export type PublishListingBody = z.infer<typeof PublishListingBody>;
 
 /** POST /api/listings/:id/photos/sign: Cloudinary signed direct-upload parameters. */
-export const SignPhotoUploadBody = z.strictObject({});
+export const SignPhotoUploadBody = z.strictObject({}).default({});
+export type SignPhotoUploadBody = z.infer<typeof SignPhotoUploadBody>;
 export const SignPhotoUploadResponse = z.object({
   cloudName: z.string(),
   apiKey: z.string(),

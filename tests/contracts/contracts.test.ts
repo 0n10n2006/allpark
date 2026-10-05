@@ -111,6 +111,12 @@ describe("schemas", () => {
         expect(schema.safeParse({ ...ok, [k]: v }).success, k).toBe(false);
       expect(schema.safeParse({ ...ok, access: null }).success).toBe(false);
     }
+    // Nested public objects are strict too: host contact details never leak pre-booking.
+    const p = pub as { host: object; photos: object[] };
+    const leakyHost = { ...p, host: { ...p.host, phone: "+919812345678" } };
+    expect(PublicListing.safeParse(leakyHost).success).toBe(false);
+    const leakyPhoto = { ...p, photos: [{ ...p.photos[0], publicId: "listings/x" }] };
+    expect(PublicListing.safeParse(leakyPhoto).success).toBe(false);
   });
 
   /** Every object key reachable from a schema, through wrappers, arrays, and pipes. */
@@ -208,6 +214,20 @@ describe("route stubs", () => {
       expect((await res.json()).error.code).toBe("not_implemented");
     },
   );
+
+  test.each(
+    endpoints
+      .filter((e) => e.body && JSON.stringify(examples[key(e)].body) === "{}")
+      .map((e) => [key(e), e] as const),
+  )("%s: POST with no body → 501 (body defaults to {})", async (_k, e) => {
+    const id = (examples[key(e)].params as { id: string } | undefined)?.id ?? "";
+    const mod = await loadRoute(e);
+    const res: Response = await mod[e.method](
+      req(e.path.replace(":id", id), { method: e.method, cookie: everyone }),
+      { params: Promise.resolve(examples[key(e)].params ?? {}) },
+    );
+    expect(res.status).toBe(501);
+  });
 
   test("invalid body on an authenticated stub → 400, not 501", async () => {
     const hold = endpoints.find((e) => key(e) === "POST /api/bookings/hold")!;

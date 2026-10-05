@@ -61,6 +61,3 @@ export const ErrorEnvelope = z.object({
   }),
 });
 export type ErrorEnvelope = z.infer<typeof ErrorEnvelope>;
-
-/** Empty JSON response body. */
-export const Empty = z.object({});

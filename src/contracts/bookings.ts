@@ -105,5 +105,7 @@ export const CreateBookingBody = z.strictObject({ holdId: Uuid });
 export type CreateBookingBody = z.infer<typeof CreateBookingBody>;
 
 /** POST /api/bookings/:id/cancel (Idempotency-Key). Refund runs as a separate state machine. */
-export const CancelBookingBody = z.strictObject({ reason: z.string().trim().max(500).optional() });
+export const CancelBookingBody = z
+  .strictObject({ reason: z.string().trim().max(500).optional() })
+  .default({});
 export type CancelBookingBody = z.infer<typeof CancelBookingBody>;

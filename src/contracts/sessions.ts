@@ -6,11 +6,15 @@ import { Quote } from "./quotes";
 // FR-07. Timestamps come from the server clock, never from the client.
 
 /** POST /api/bookings/:id/check-in: renter's "Start parking", or host confirmation. */
-export const CheckInBody = z.strictObject({ note: z.string().trim().max(500).optional() });
+export const CheckInBody = z
+  .strictObject({ note: z.string().trim().max(500).optional() })
+  .default({});
 export type CheckInBody = z.infer<typeof CheckInBody>;
 
 /** POST /api/bookings/:id/check-out: departure by renter or host. */
-export const CheckOutBody = z.strictObject({ note: z.string().trim().max(500).optional() });
+export const CheckOutBody = z
+  .strictObject({ note: z.string().trim().max(500).optional() })
+  .default({});
 export type CheckOutBody = z.infer<typeof CheckOutBody>;
 
 /**

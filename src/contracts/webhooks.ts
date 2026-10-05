@@ -16,3 +16,4 @@ export const RazorpayWebhookBody = z.looseObject({
 export type RazorpayWebhookBody = z.infer<typeof RazorpayWebhookBody>;
 
 export const RazorpayWebhookResponse = z.object({ received: z.literal(true) });
+export type RazorpayWebhookResponse = z.infer<typeof RazorpayWebhookResponse>;

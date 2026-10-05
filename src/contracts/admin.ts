@@ -42,6 +42,7 @@ export const AdminListUsersQuery = PaginationQuery.extend({
 });
 export type AdminListUsersQuery = z.infer<typeof AdminListUsersQuery>;
 export const AdminListUsersResponse = page(AdminUser);
+export type AdminListUsersResponse = z.infer<typeof AdminListUsersResponse>;
 
 export const AdminListing = z.object({ ...OwnedListing.shape, hostId: Uuid });
 export type AdminListing = z.infer<typeof AdminListing>;
@@ -54,6 +55,7 @@ export const AdminListListingsQuery = PaginationQuery.extend({
 });
 export type AdminListListingsQuery = z.infer<typeof AdminListListingsQuery>;
 export const AdminListListingsResponse = page(AdminListing);
+export type AdminListListingsResponse = z.infer<typeof AdminListListingsResponse>;
 
 export const AdminBooking = z.object({ ...BookingDetail.shape, hostId: Uuid });
 export type AdminBooking = z.infer<typeof AdminBooking>;
@@ -67,6 +69,7 @@ export const AdminListBookingsQuery = PaginationQuery.extend({
 });
 export type AdminListBookingsQuery = z.infer<typeof AdminListBookingsQuery>;
 export const AdminListBookingsResponse = page(AdminBooking);
+export type AdminListBookingsResponse = z.infer<typeof AdminListBookingsResponse>;
 
 export const AdminRefund = z.object({
   id: Uuid,
@@ -78,6 +81,7 @@ export const AdminRefund = z.object({
   reconciledAt: IsoDateTime.nullable(),
   createdAt: IsoDateTime,
 });
+export type AdminRefund = z.infer<typeof AdminRefund>;
 
 export const AdminPayment = z.object({
   id: Uuid,
@@ -104,6 +108,7 @@ export const AdminListPaymentsQuery = PaginationQuery.extend({
 });
 export type AdminListPaymentsQuery = z.infer<typeof AdminListPaymentsQuery>;
 export const AdminListPaymentsResponse = page(AdminPayment);
+export type AdminListPaymentsResponse = z.infer<typeof AdminListPaymentsResponse>;
 
 export const AdminJob = z.object({
   id: Uuid,
@@ -124,6 +129,7 @@ export const AdminListJobsQuery = PaginationQuery.extend({
 });
 export type AdminListJobsQuery = z.infer<typeof AdminListJobsQuery>;
 export const AdminListJobsResponse = page(AdminJob);
+export type AdminListJobsResponse = z.infer<typeof AdminListJobsResponse>;
 
 /** Dispute with its booking for the support timeline. */
 export const AdminDispute = z.object({ ...Dispute.shape, booking: AdminBooking });
@@ -135,6 +141,7 @@ export const AdminListDisputesQuery = PaginationQuery.extend({
 });
 export type AdminListDisputesQuery = z.infer<typeof AdminListDisputesQuery>;
 export const AdminListDisputesResponse = page(AdminDispute);
+export type AdminListDisputesResponse = z.infer<typeof AdminListDisputesResponse>;
 
 // ── Decisions (all require `reason`) ──
 
