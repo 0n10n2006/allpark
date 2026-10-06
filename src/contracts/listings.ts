@@ -170,7 +170,9 @@ export const SignPhotoUploadResponse = z.object({
   apiKey: z.string(),
   timestamp: z.number().int(),
   signature: z.string(),
+  /** Informational only: not signed, so don't send it with the upload. */
   folder: z.string(),
+  /** Signed: send as `public_id` together with timestamp, api_key, and signature. */
   publicId: z.string(),
   /** Signed too: send it as `allowed_formats` with the upload. */
   allowedFormats: z.string().optional(),

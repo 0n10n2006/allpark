@@ -8,6 +8,7 @@ import {
   OwnedListing,
   PublicListing,
   type UpdateListingBody,
+  Uuid,
 } from "@/contracts";
 import type { HostVerificationStatus, Prisma } from "@/generated/prisma/client";
 import { type CurrentUser, assertOwner, requireVerifiedHost } from "@/server/auth/guards";
@@ -238,6 +239,8 @@ export async function updateListing(user: CurrentUser, id: string, body: UpdateL
 
 /** GET /api/listings/mine */
 export async function listMine(user: CurrentUser, limit: number, cursor?: string) {
+  if (cursor && !Uuid.safeParse(cursor).success)
+    throw new HttpError("validation_error", "Invalid cursor");
   const rows = await db.listing.findMany({
     where: { hostId: user.id },
     include,
@@ -247,7 +250,19 @@ export async function listMine(user: CurrentUser, limit: number, cursor?: string
   });
   const more = rows.length > limit;
   const page = rows.slice(0, limit);
-  return { items: page.map((l) => toOwned(l)), nextCursor: more ? page.at(-1)!.id : null };
+  const ratings = await db.review.groupBy({
+    by: ["listingId"],
+    where: { listingId: { in: page.map((l) => l.id) }, moderationStatus: "APPROVED" },
+    _avg: { rating: true },
+    _count: true,
+  });
+  const byId = new Map(
+    ratings.map((r) => [r.listingId, { average: r._avg.rating, count: r._count }]),
+  );
+  return {
+    items: page.map((l) => toOwned(l, byId.get(l.id))),
+    nextCursor: more ? page.at(-1)!.id : null,
+  };
 }
 
 /** GET /api/listings/:id. Only PUBLISHED is public; owner and admins see any status. */

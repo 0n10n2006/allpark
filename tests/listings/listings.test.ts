@@ -6,6 +6,7 @@ vi.mock("@/server/db", async () => ({ db: (await import("../setup/db")).testDb }
 
 const listingsRoute = await import("@/app/api/listings/route");
 const itemRoute = await import("@/app/api/listings/[id]/route");
+const mineRoute = await import("@/app/api/listings/mine/route");
 const publishRoute = await import("@/app/api/listings/[id]/publish/route");
 const photosRoute = await import("@/app/api/listings/[id]/photos/route");
 const signRoute = await import("@/app/api/listings/[id]/photos/sign/route");
@@ -182,6 +183,22 @@ describe("ownership and privacy", () => {
     expect(
       (await itemRoute.GET(req(`/api/listings/${id}`, { cookie: owner.cookie }), at(id))).status,
     ).toBe(200);
+  });
+
+  test("GET /mine lists only the caller's listings with private fields; bad cursor → 400", async () => {
+    const owner = await host(false);
+    const other = await host(false);
+    const { id } = await createDraft(owner.cookie);
+    await createDraft(other.cookie);
+    const res = await mineRoute.GET(req("/api/listings/mine", { cookie: owner.cookie }), noParams);
+    const { items } = await res.json();
+    expect(items.map((l: { id: string }) => l.id)).toEqual([id]);
+    expect(items[0].accessInstructions).toBe("Gate code 1234");
+    const bad = await mineRoute.GET(
+      req("/api/listings/mine?cursor=nope", { cookie: owner.cookie }),
+      noParams,
+    );
+    expect(bad.status).toBe(400);
   });
 
   test("public GET has no address, exact coords, or access instructions", async () => {
