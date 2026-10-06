@@ -8,7 +8,9 @@ try {
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL is not set");
 
-export const testDb = new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });
+export const testDb = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: url, options: "-c TimeZone=UTC" }),
+});
 
 /** Empties every application table (keeps _prisma_migrations). */
 export async function truncateAll() {

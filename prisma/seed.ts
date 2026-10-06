@@ -10,7 +10,11 @@ import {
 } from "../src/generated/prisma/client";
 
 const db = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
+  adapter: new PrismaPg({
+    connectionString: process.env.DATABASE_URL!,
+    // adapter-pg sends Dates as UTC text without an offset: pin the session to UTC.
+    options: "-c TimeZone=UTC",
+  }),
 });
 
 /** Stable UUID from a seed name, so re-running updates rows instead of duplicating them. */
