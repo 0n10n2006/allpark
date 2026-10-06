@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { ListingStatus, SpaceType, VehicleType } from "../generated/prisma/enums";
+import {
+  HostVerificationStatus,
+  ListingStatus,
+  SpaceType,
+  UserRole,
+  VehicleType,
+} from "../generated/prisma/enums";
 import { IsoDateTime, Money, Paise, Uuid, page } from "./common";
 
 // FR-02 listing management. Privacy (FR-01 AC4, FR-03): public shapes carry only
@@ -164,8 +170,14 @@ export const SignPhotoUploadResponse = z.object({
   apiKey: z.string(),
   timestamp: z.number().int(),
   signature: z.string(),
+  /** Informational only: not signed, so don't send it with the upload. */
   folder: z.string(),
+  /** Signed: send as `public_id` together with timestamp, api_key, and signature. */
   publicId: z.string(),
+  /** Signed too: send it as `allowed_formats` with the upload. */
+  allowedFormats: z.string().optional(),
+  /** Client-side hint only; signed params can't enforce a size cap. */
+  maxFileBytes: z.number().int().positive().optional(),
 });
 export type SignPhotoUploadResponse = z.infer<typeof SignPhotoUploadResponse>;
 
@@ -175,3 +187,26 @@ export const AddListingPhotoBody = z.strictObject({
   position: z.number().int().min(0).max(50).optional(),
 });
 export type AddListingPhotoBody = z.infer<typeof AddListingPhotoBody>;
+
+/** PATCH /api/listings/:id/photos: new order; must list every photo of the listing once. */
+export const ReorderListingPhotosBody = z.strictObject({
+  photoIds: z.array(Uuid).min(1).max(50),
+});
+export type ReorderListingPhotosBody = z.infer<typeof ReorderListingPhotosBody>;
+
+/** DELETE /api/listings/:id/photos?photoId=… */
+export const DeleteListingPhotoQuery = z.object({ photoId: Uuid });
+export type DeleteListingPhotoQuery = z.infer<typeof DeleteListingPhotoQuery>;
+
+/** Owner view of a listing's photos, in position order. */
+export const ListingPhotosResponse = z.object({ items: z.array(ListingPhoto) });
+export type ListingPhotosResponse = z.infer<typeof ListingPhotosResponse>;
+
+/** POST /api/me/host: become a host. Verification itself is an admin decision (FR-01). */
+export const BecomeHostBody = z.strictObject({ attestAuthority: z.literal(true) });
+export type BecomeHostBody = z.infer<typeof BecomeHostBody>;
+export const HostStatusResponse = z.object({
+  roles: z.array(z.enum(UserRole)),
+  hostVerificationStatus: z.enum(HostVerificationStatus),
+});
+export type HostStatusResponse = z.infer<typeof HostStatusResponse>;

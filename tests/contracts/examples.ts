@@ -231,6 +231,20 @@ export const examples: Record<
     body: { attestAuthority: true },
     response: ownedListing,
   },
+  "PATCH /api/listings/:id/photos": {
+    params,
+    body: { photoIds: [ID2] },
+    response: { items: publicListing.photos },
+  },
+  "DELETE /api/listings/:id/photos": {
+    params,
+    query: { photoId: ID2 },
+    response: { items: [] },
+  },
+  "POST /api/me/host": {
+    body: { attestAuthority: true },
+    response: { roles: ["RENTER", "HOST"], hostVerificationStatus: "PENDING" },
+  },
   "POST /api/quotes": {
     body: { listingId: ID, rentalType: "HOURLY", startAt: T0, endAt: T1 },
     response: quote,

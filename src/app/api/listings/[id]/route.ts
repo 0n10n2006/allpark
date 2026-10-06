@@ -1,10 +1,11 @@
 import { IdParams, UpdateListingBody } from "@/contracts";
+import { getPublicListing, updateListing } from "@/server/listings/service";
 import { route } from "@/server/http/route";
-import { notImplemented } from "../../_lib/not-implemented";
 
-// Stub (T2.0). Implemented by T2.3.
-export const GET = route({ auth: "public", params: IdParams }, notImplemented);
+export const GET = route({ auth: "public", params: IdParams }, async ({ user, params }) =>
+  Response.json(await getPublicListing(params.id, user)),
+);
 export const PATCH = route(
   { auth: "user", params: IdParams, body: UpdateListingBody },
-  notImplemented,
+  async ({ user, params, body }) => Response.json(await updateListing(user, params.id, body)),
 );
