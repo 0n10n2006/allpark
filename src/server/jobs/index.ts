@@ -51,16 +51,16 @@ export async function enqueue(
  */
 export async function claimDue(workerId: string, batchSize: number) {
   const limit = Math.max(1, Math.min(Math.floor(batchSize), 100));
+  await db.$executeRaw(Prisma.sql`
+    UPDATE "Job"
+    SET status = 'PENDING', "lockedAt" = NULL, "lockedBy" = NULL, "updatedAt" = now()
+    WHERE status = 'RUNNING'
+      AND "lockedAt" < now() - (${DEFAULT_LEASE_SECONDS} * interval '1 second')
+  `);
   return db.$queryRaw<Awaited<ReturnType<typeof db.job.findMany>>>(Prisma.sql`
-    WITH reclaimed AS (
-      UPDATE "Job"
-      SET status = 'PENDING', "lockedAt" = NULL, "lockedBy" = NULL, "updatedAt" = now()
-      WHERE status = 'RUNNING'
-        AND "lockedAt" < now() - (${DEFAULT_LEASE_SECONDS} * interval '1 second')
-    )
     UPDATE "Job"
     SET status = 'RUNNING', "lockedAt" = now(), "lockedBy" = ${workerId}, "updatedAt" = now()
-    WHERE id IN (
+    WHERE status = 'PENDING' AND id IN (
       SELECT id FROM "Job"
       WHERE status = 'PENDING' AND "runAt" <= now()
       ORDER BY "runAt"

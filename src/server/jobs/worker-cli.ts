@@ -7,7 +7,7 @@ async function tick() {
   try {
     const result = await runOnce(workerId);
     console.log(JSON.stringify({ event: "jobs.tick", workerId, ...result }));
-  } catch (error) {
+  } catch {
     console.error(JSON.stringify({ event: "jobs.error", workerId, error: "runOnce failed" }));
   }
 }
