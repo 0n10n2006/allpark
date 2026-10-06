@@ -1,6 +1,7 @@
 import { DeletionRequestBody } from "@/contracts";
 import { route } from "@/server/http/route";
-import { notImplemented } from "../../_lib/not-implemented";
+import { requestDeletion } from "@/server/users/users";
 
-// Stub (T2.0). Implemented by T2.5.
-export const POST = route({ auth: "user", body: DeletionRequestBody }, notImplemented);
+export const POST = route({ auth: "user", body: DeletionRequestBody }, async ({ user, body }) =>
+  Response.json(await requestDeletion(user.id, body.reason), { status: 202 }),
+);

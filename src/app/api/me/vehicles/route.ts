@@ -1,7 +1,10 @@
 import { CreateVehicleBody } from "@/contracts";
 import { route } from "@/server/http/route";
-import { notImplemented } from "../../_lib/not-implemented";
+import { createVehicle, listVehicles } from "@/server/users/users";
 
-// Stub (T2.0). Implemented by T2.5.
-export const GET = route({ auth: "user" }, notImplemented);
-export const POST = route({ auth: "user", body: CreateVehicleBody }, notImplemented);
+export const GET = route({ auth: "user" }, async ({ user }) =>
+  Response.json({ items: await listVehicles(user.id) }),
+);
+export const POST = route({ auth: "user", body: CreateVehicleBody }, async ({ user, body }) =>
+  Response.json(await createVehicle(user.id, body), { status: 201 }),
+);
