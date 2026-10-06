@@ -20,11 +20,14 @@ Auth `user` = signed-in session; `admin` = ADMIN role. Mutating admin requests r
 | GET | `/api/listings/mine` | user | query: `PaginationQuery` | `MyListingsResponse` | T2.3 |
 | GET | `/api/listings/:id` | public | params: `IdParams` | `PublicListing` | T2.3 |
 | PATCH | `/api/listings/:id` | user | params: `IdParams`<br>body: `UpdateListingBody` | `OwnedListing` | T2.3 |
-| GET | `/api/listings/:id/availability` | public | params: `IdParams`<br>query: `GetAvailabilityQuery` | `GetAvailabilityResponse` | T2.3 |
+| GET | `/api/listings/:id/availability` | public | params: `IdParams`<br>query: `GetAvailabilityQuery` | `GetAvailabilityResponse` | T2.1 |
 | POST | `/api/listings/:id/availability` | user | params: `IdParams`<br>body: `UpdateAvailabilityBody` | `GetAvailabilityResponse` | T2.3 |
 | POST | `/api/listings/:id/photos/sign` | user | params: `IdParams`<br>body: `SignPhotoUploadBody` | `SignPhotoUploadResponse` | T2.3 |
 | POST | `/api/listings/:id/photos` | user | params: `IdParams`<br>body: `AddListingPhotoBody` | `ListingPhoto` | T2.3 |
 | POST | `/api/listings/:id/publish` | user | params: `IdParams`<br>body: `PublishListingBody` | `OwnedListing` | T2.3 |
+| PATCH | `/api/listings/:id/photos` | user | params: `IdParams`<br>body: `ReorderListingPhotosBody` | `ListingPhotosResponse` | T2.3 |
+| DELETE | `/api/listings/:id/photos` | user | params: `IdParams`<br>query: `DeleteListingPhotoQuery` | `ListingPhotosResponse` | T2.3 |
+| POST | `/api/me/host` | user | body: `BecomeHostBody` | `HostStatusResponse` | T2.3 |
 | POST | `/api/quotes` | user | body: `CreateQuoteBody` | `Quote` | T2.2 |
 | GET | `/api/bookings` | user | query: `ListBookingsQuery` | `ListBookingsResponse` | T2.1 |
 | POST | `/api/bookings` | user · Idempotency-Key | body: `CreateBookingBody` | `BookingDetail` | T2.1 |

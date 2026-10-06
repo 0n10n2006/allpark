@@ -1,9 +1,8 @@
 import { IdParams, PublishListingBody } from "@/contracts";
+import { publishListing } from "@/server/listings/service";
 import { route } from "@/server/http/route";
-import { notImplemented } from "../../../_lib/not-implemented";
 
-// Stub (T2.0). Implemented by T2.3.
 export const POST = route(
   { auth: "user", params: IdParams, body: PublishListingBody },
-  notImplemented,
+  async ({ req, user, params }) => Response.json(await publishListing(user, params.id, req)),
 );
