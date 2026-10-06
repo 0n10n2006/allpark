@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { z } from "zod";
@@ -13,6 +13,14 @@ vi.mock("@/server/db", async () => ({ db: (await import("../setup/db")).testDb }
 
 const key = (e: Endpoint) => `${e.method} ${e.path}`;
 const routeFile = (e: Endpoint) => path.join("src/app", e.path.replace(/:id/g, "[id]"), "route.ts");
+
+// An endpoint is still a stub while its method is wired to notImplemented. Implementing
+// tasks replace that, and the 501 assertions below drop it automatically.
+const isStub = (e: Endpoint) =>
+  new RegExp(String.raw`export const ${e.method}\s*=\s*route\([^;]*notImplemented\s*,?\s*\)`).test(
+    readFileSync(routeFile(e), "utf8"),
+  );
+const stubs = endpoints.filter(isStub);
 
 const loadRoute = (e: Endpoint) =>
   import(/* @vite-ignore */ `@/app${e.path.replace(/:id/g, "[id]")}/route`);
@@ -206,7 +214,7 @@ describe("route stubs", () => {
     },
   );
 
-  test.each(endpoints.map((e) => [key(e), e] as const))(
+  test.each(stubs.map((e) => [key(e), e] as const))(
     "%s: valid authorized request → 501 not_implemented",
     async (_k, e) => {
       const res = await call(e, everyone);
@@ -216,7 +224,7 @@ describe("route stubs", () => {
   );
 
   test.each(
-    endpoints
+    stubs
       .filter((e) => e.body && JSON.stringify(examples[key(e)].body) === "{}")
       .map((e) => [key(e), e] as const),
   )("%s: POST with no body → 501 (body defaults to {})", async (_k, e) => {

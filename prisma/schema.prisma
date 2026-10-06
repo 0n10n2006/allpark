@@ -192,6 +192,9 @@ model User {
   payoutOnboardedAt      DateTime?              @db.Timestamptz
   preferences            Json?
   deletionRequestedAt    DateTime?              @db.Timestamptz
+  /// Set by admins (FR-13); suspended users can't sign in to act or book.
+  suspendedAt            DateTime?              @db.Timestamptz
+  suspendedReason        String?
   createdAt              DateTime               @default(now()) @db.Timestamptz
   updatedAt              DateTime               @updatedAt @db.Timestamptz
 
@@ -208,6 +211,7 @@ model User {
   overstayReports   OverstayIncident[]
   notifications     Notification[]
   idempotencyKeys   IdempotencyKey[]
+  reports           Report[]
 }
 
 model Account {
@@ -264,6 +268,8 @@ model Vehicle {
   heightCm     Int?
   widthCm      Int?
   lengthCm     Int?
+  /// Soft delete: vehicles referenced by bookings are hidden, never removed.
+  deletedAt    DateTime?   @db.Timestamptz
   createdAt    DateTime    @default(now()) @db.Timestamptz
   updatedAt    DateTime    @updatedAt @db.Timestamptz
 
@@ -784,4 +790,50 @@ model RateLimit {
   updatedAt   DateTime @updatedAt @db.Timestamptz
 
   @@unique([key, windowStart])
+}
+
+enum ReportTargetType {
+  LISTING
+  REVIEW
+  USER
+  BOOKING
+}
+
+enum ReportReason {
+  ACCESS_PROBLEM
+  FAKE_OR_UNAUTHORIZED_LISTING
+  INACCURATE_LISTING
+  INAPPROPRIATE_CONTENT
+  SUSPICIOUS_BEHAVIOR
+  SAFETY
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  UNDER_REVIEW
+  ACTIONED
+  DISMISSED
+}
+
+/// User reports of listings, reviews, users, or bookings (FR-11), moderated by admins (FR-13).
+model Report {
+  id           String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reporterId   String           @db.Uuid
+  targetType   ReportTargetType
+  targetId     String           @db.Uuid
+  reason       ReportReason
+  description  String
+  evidenceUrls String[]
+  status       ReportStatus     @default(OPEN)
+  resolution   String?
+  resolvedById String?          @db.Uuid
+  resolvedAt   DateTime?        @db.Timestamptz
+  createdAt    DateTime         @default(now()) @db.Timestamptz
+  updatedAt    DateTime         @updatedAt @db.Timestamptz
+
+  reporter User @relation(fields: [reporterId], references: [id])
+
+  @@index([status])
+  @@index([targetType, targetId])
 }
