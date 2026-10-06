@@ -49,7 +49,7 @@ export async function createQuote(user: CurrentUser, input: CreateQuoteBody): Pr
     throw new HttpError("not_found", "Listing not found");
   if (input.vehicleId) {
     const vehicle = await db.vehicle.findUnique({ where: { id: input.vehicleId } });
-    if (!vehicle || vehicle.userId !== user.id)
+    if (!vehicle || vehicle.userId !== user.id || vehicle.deletedAt)
       throw new HttpError("not_found", "Vehicle not found");
   }
 
