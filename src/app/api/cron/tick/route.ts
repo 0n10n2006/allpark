@@ -2,8 +2,6 @@ import { timingSafeEqual } from "node:crypto";
 import { env } from "@/lib/env";
 import { runOnce, type RunOnceResult } from "@/server/jobs";
 
-export const runtime = "nodejs";
-
 function authorized(header: string | null): boolean {
   const expected = Buffer.from(`Bearer ${env.CRON_SECRET}`);
   const received = Buffer.from(header ?? "");
