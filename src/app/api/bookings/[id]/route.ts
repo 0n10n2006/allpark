@@ -1,6 +1,7 @@
 import { IdParams } from "@/contracts";
+import { getBooking } from "@/server/bookings/service";
 import { route } from "@/server/http/route";
-import { notImplemented } from "../../_lib/not-implemented";
 
-// Stub (T2.0). Implemented by T2.1.
-export const GET = route({ auth: "user", params: IdParams }, notImplemented);
+export const GET = route({ auth: "user", params: IdParams }, async ({ user, params }) =>
+  Response.json(await getBooking(params.id, user)),
+);

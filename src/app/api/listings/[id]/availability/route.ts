@@ -1,12 +1,12 @@
 import { GetAvailabilityQuery, IdParams, UpdateAvailabilityBody } from "@/contracts";
+import { getListingAvailability } from "@/server/availability/service";
 import { replaceAvailability } from "@/server/listings/service";
 import { route } from "@/server/http/route";
-import { notImplemented } from "../../../_lib/not-implemented";
 
-// GET: stub (T2.0), implemented by T2.1.
 export const GET = route(
   { auth: "public", params: IdParams, query: GetAvailabilityQuery },
-  notImplemented,
+  async ({ user, params, query }) =>
+    Response.json(await getListingAvailability(params.id, user, query)),
 );
 export const POST = route(
   { auth: "user", params: IdParams, body: UpdateAvailabilityBody },
