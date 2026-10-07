@@ -14,9 +14,17 @@ export const InboxNotification = z.object({
   body: z.string(),
   /** In-app link target, e.g. "/bookings/<id>". */
   href: z.string().nullable(),
+  readAt: IsoDateTime.nullable().optional(),
   createdAt: IsoDateTime,
 });
 export type InboxNotification = z.infer<typeof InboxNotification>;
 
-export const ListNotificationsResponse = page(InboxNotification);
+export const ListNotificationsResponse = page(InboxNotification).extend({
+  /** Unread, visible notifications across all pages. */
+  unreadCount: z.number().int().min(0).optional(),
+});
 export type ListNotificationsResponse = z.infer<typeof ListNotificationsResponse>;
+
+/** POST /api/notifications/:id/read (owner only). */
+export const MarkNotificationReadResponse = z.object({ ok: z.literal(true) });
+export type MarkNotificationReadResponse = z.infer<typeof MarkNotificationReadResponse>;

@@ -56,6 +56,7 @@ Auth `user` = signed-in session; `admin` = ADMIN role. Mutating admin requests r
 | PATCH | `/api/me/preferences` | user | body: `UpdatePreferencesBody` | `Preferences` | T2.5 |
 | POST | `/api/me/deletion-request` | user | body: `DeletionRequestBody` | `DeletionRequestResponse` | T2.5 |
 | GET | `/api/notifications` | user | query: `PaginationQuery` | `ListNotificationsResponse` | T2.6 |
+| POST | `/api/notifications/:id/read` | user | params: `IdParams` | `MarkNotificationReadResponse` | T2.6 |
 | GET | `/api/admin/users` | admin | query: `AdminListUsersQuery` | `AdminListUsersResponse` | T4.6 |
 | POST | `/api/admin/users/:id/verify-host` | admin | params: `IdParams`<br>body: `AdminVerifyHostBody` | `AdminActionResponse` | T4.6 |
 | POST | `/api/admin/users/:id/suspend` | admin | params: `IdParams`<br>body: `AdminSuspendUserBody` | `AdminActionResponse` | T4.6 |

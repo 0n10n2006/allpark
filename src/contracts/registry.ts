@@ -397,6 +397,14 @@ export const endpoints: Endpoint[] = [
     query: PaginationQuery,
     response: notifications.ListNotificationsResponse,
   },
+  {
+    method: "POST",
+    path: "/api/notifications/:id/read",
+    auth: "user",
+    task: "T2.6",
+    params: IdParams,
+    response: notifications.MarkNotificationReadResponse,
+  },
 
   // Admin
   {
