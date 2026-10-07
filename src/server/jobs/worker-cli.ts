@@ -12,5 +12,11 @@ async function tick() {
   }
 }
 
-await tick();
-setInterval(() => void tick(), 5_000);
+// Reschedule after each run so slow batches never overlap. The DB is the
+// source of truth; this timer only decides when to poll it next.
+async function loop() {
+  await tick();
+  setTimeout(() => void loop(), 5_000);
+}
+
+void loop();
