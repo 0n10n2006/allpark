@@ -63,11 +63,27 @@ describe("transition", () => {
 
   test("two concurrent transitions from the same state: exactly one wins", async () => {
     const b = await booking("CONFIRMED");
-    const results = await Promise.all([
+    // A third transaction holds the row lock, so both transitions read CONFIRMED and then
+    // queue on their UPDATE; only the WHERE status = from guard can stop the second.
+    let release!: () => void;
+    let locked!: () => void;
+    const isLocked = new Promise<void>((r) => (locked = r));
+    const holder = run(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Booking" WHERE id = ${b.id}::uuid FOR UPDATE`;
+      locked();
+      await new Promise<void>((r) => (release = r));
+    });
+    await isLocked;
+    const racing = Promise.all([
       outcome(run((tx) => transition(tx, b.id, "ACTIVE", null))),
       outcome(run((tx) => transition(tx, b.id, "CANCELLED", null, "renter cancelled"))),
     ]);
+    await new Promise((r) => setTimeout(r, 300));
+    release();
+    await holder;
+    const results = await racing;
     expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
+    expect(results.find((r) => r.status === 409)?.reason).toBe("status_changed");
     expect(await testDb.auditLog.count({ where: { targetId: b.id } })).toBe(1);
   });
 });
