@@ -86,15 +86,17 @@ async function failJob(
   id: string,
   workerId: string,
   error: string,
+  permanent = false,
 ): Promise<"retried" | "dead"> {
+  // Unknown types and invalid payloads cannot succeed on retry.
   const rows = await db.$queryRaw<{ status: string }[]>(Prisma.sql`
     UPDATE "Job"
     SET
       attempts = attempts + 1,
       "lastError" = ${error.slice(0, 256)},
-      status = CASE WHEN attempts + 1 >= "maxAttempts" THEN 'DEAD'::"JobStatus" ELSE 'PENDING'::"JobStatus" END,
+      status = CASE WHEN ${permanent} OR attempts + 1 >= "maxAttempts" THEN 'DEAD'::"JobStatus" ELSE 'PENDING'::"JobStatus" END,
       "runAt" = CASE
-        WHEN attempts + 1 >= "maxAttempts" THEN "runAt"
+        WHEN ${permanent} OR attempts + 1 >= "maxAttempts" THEN "runAt"
         ELSE now() + LEAST(3600, 30 * power(2, attempts)) * interval '1 second'
       END,
       "lockedAt" = NULL,
@@ -114,13 +116,13 @@ export async function runOnce(workerId: string, batchSize = 10): Promise<RunOnce
   for (const job of jobs) {
     const registered = getRegisteredJob(job.type);
     if (!registered) {
-      result[await failJob(job.id, workerId, UNKNOWN_TYPE_ERROR)] += 1;
+      result[await failJob(job.id, workerId, UNKNOWN_TYPE_ERROR, true)] += 1;
       continue;
     }
 
     const parsed = registered.schema.safeParse(job.payload);
     if (!parsed.success) {
-      result[await failJob(job.id, workerId, INVALID_PAYLOAD_ERROR)] += 1;
+      result[await failJob(job.id, workerId, INVALID_PAYLOAD_ERROR, true)] += 1;
       continue;
     }
 
