@@ -683,6 +683,8 @@ model Notification {
   payload        Json
   scheduledAt    DateTime            @default(now()) @db.Timestamptz
   sentAt         DateTime?           @db.Timestamptz
+  /// In-app read receipt (inbox unread count).
+  readAt         DateTime?           @db.Timestamptz
   status         NotificationStatus  @default(PENDING)
   idempotencyKey String              @unique
   attempts       Int                 @default(0)
@@ -694,6 +696,7 @@ model Notification {
 
   @@index([status, scheduledAt])
   @@index([userId, createdAt])
+  @@index([userId, readAt])
 }
 
 /// `actorId` and `targetId` are plain ids with no foreign key, so the audit trail
