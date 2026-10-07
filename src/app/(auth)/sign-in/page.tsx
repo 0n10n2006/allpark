@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -24,7 +25,16 @@ async function sendLink(formData: FormData) {
   await signIn("resend", { email: email.data, redirectTo: callbackUrl });
 }
 
-export default async function SignInPage({ searchParams }: PageProps<"/sign-in">) {
+// cacheComponents: request data (searchParams) must be read inside a Suspense boundary.
+export default function SignInPage(props: PageProps<"/sign-in">) {
+  return (
+    <Suspense>
+      <SignInContent {...props} />
+    </Suspense>
+  );
+}
+
+async function SignInContent({ searchParams }: PageProps<"/sign-in">) {
   const params = await searchParams;
   const callbackUrl = safeCallback(params.callbackUrl);
 

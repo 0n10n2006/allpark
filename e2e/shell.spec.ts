@@ -1,20 +1,21 @@
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
+// Signed out: protected tabs land on sign-in (the signed-in pages have their own specs).
 const routes = [
-  ["Explore", "/explore", "Explore parking"],
-  ["Bookings", "/bookings", "Your bookings"],
-  ["Host", "/host", "Host your space"],
-  ["Account", "/account", "Your account"],
+  ["Explore", /\/explore$/],
+  ["Bookings", /\/sign-in\?callbackUrl=%2Fbookings/],
+  ["Host", /\/sign-in\?callbackUrl=%2Fhost/],
+  ["Account", /\/sign-in\?callbackUrl=%2Faccount/],
 ] as const;
 
 test.describe("app shell", () => {
   test("mobile navigation is accessible and does not overflow", async ({ page }) => {
-    for (const [label, route, heading] of routes) {
+    for (const [label, url] of routes) {
       await page.goto("/explore");
       await page.getByRole("link", { name: label }).last().click();
-      await expect(page).toHaveURL(route);
-      await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
+      await expect(page).toHaveURL(url);
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       expect(
         await page.evaluate(() => document.scrollingElement!.scrollWidth <= window.innerWidth),
       ).toBe(true);
