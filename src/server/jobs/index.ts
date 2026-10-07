@@ -53,7 +53,13 @@ export async function claimDue(workerId: string, batchSize: number) {
   const limit = Math.max(1, Math.min(Math.floor(batchSize), 100));
   await db.$executeRaw(Prisma.sql`
     UPDATE "Job"
-    SET status = 'PENDING', "lockedAt" = NULL, "lockedBy" = NULL, "updatedAt" = now()
+    SET
+      -- An expired lease means the worker died mid-job: count it, so a job that
+      -- crashes every worker still ends DEAD instead of looping forever.
+      attempts = attempts + 1,
+      "lastError" = 'Lease expired (worker crashed or timed out)',
+      status = CASE WHEN attempts + 1 >= "maxAttempts" THEN 'DEAD'::"JobStatus" ELSE 'PENDING'::"JobStatus" END,
+      "lockedAt" = NULL, "lockedBy" = NULL, "updatedAt" = now()
     WHERE status = 'RUNNING'
       AND "lockedAt" < now() - (${DEFAULT_LEASE_SECONDS} * interval '1 second')
   `);

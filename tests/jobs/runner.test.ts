@@ -28,7 +28,10 @@ describe("durable jobs", () => {
     expect(new Set(ids).size).toBe(10);
     expect(ids).not.toContain(future.id);
 
-    await testDb.job.updateMany({ where: { status: "PENDING" }, data: { runAt: new Date(Date.now() - 1000) } });
+    await testDb.job.updateMany({
+      where: { status: "PENDING" },
+      data: { runAt: new Date(Date.now() - 1000) },
+    });
     expect(await claimDue("later", 10)).toHaveLength(1);
   });
 
@@ -47,7 +50,11 @@ describe("durable jobs", () => {
       const before = Date.now();
       expect(await runOnce("runner")).toMatchObject({ claimed: 1, retried: 1, dead: 0 });
       const row = await testDb.job.findUniqueOrThrow({ where: { id: job.id } });
-      expect(row).toMatchObject({ status: "PENDING", attempts: attempt, lastError: "Job handler failed" });
+      expect(row).toMatchObject({
+        status: "PENDING",
+        attempts: attempt,
+        lastError: "Job handler failed",
+      });
       const delay = (row.runAt.getTime() - before) / 1000;
       expect(delay).toBeGreaterThan(delaySeconds - 5);
       expect(delay).toBeLessThan(delaySeconds + 5);
@@ -80,5 +87,23 @@ describe("durable jobs", () => {
     const claimed = await claimDue("replacement", 1);
     expect(claimed.map((row) => row.id)).toEqual([job.id]);
     expect(claimed[0]?.lockedBy).toBe("replacement");
+    expect(claimed[0]?.attempts).toBe(1);
+  });
+
+  it("a job whose lease keeps expiring ends DEAD at maxAttempts", async () => {
+    const job = await enqueue("system.noop", {}, { maxAttempts: 2 });
+    await testDb.job.update({
+      where: { id: job.id },
+      data: {
+        status: "RUNNING",
+        attempts: 1,
+        lockedAt: new Date(Date.now() - 6 * 60_000),
+        lockedBy: "lost",
+      },
+    });
+    expect(await claimDue("replacement", 1)).toEqual([]);
+    const row = await testDb.job.findUniqueOrThrow({ where: { id: job.id } });
+    expect(row.status).toBe("DEAD");
+    expect(row.attempts).toBe(2);
   });
 });
