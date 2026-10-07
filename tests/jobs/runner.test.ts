@@ -19,11 +19,14 @@ describe("durable jobs", () => {
   });
 
   it("does not double-claim concurrent work and waits for future work", async () => {
-    await enqueue("system.noop", {});
-    await enqueue("system.noop", {}, { runAt: new Date(Date.now() + 60_000) });
+    for (let i = 0; i < 10; i++) await enqueue("system.noop", {});
+    const future = await enqueue("system.noop", {}, { runAt: new Date(Date.now() + 60_000) });
+    // Separate pool connections; each would happily take all 10 without SKIP LOCKED.
     const [left, right] = await Promise.all([claimDue("left", 10), claimDue("right", 10)]);
-    expect([...left, ...right]).toHaveLength(1);
-    expect(left[0]?.id).not.toBe(right[0]?.id);
+    const ids = [...left, ...right].map((row) => row.id);
+    expect(ids).toHaveLength(10);
+    expect(new Set(ids).size).toBe(10);
+    expect(ids).not.toContain(future.id);
 
     await testDb.job.updateMany({ where: { status: "PENDING" }, data: { runAt: new Date(Date.now() - 1000) } });
     expect(await claimDue("later", 10)).toHaveLength(1);
