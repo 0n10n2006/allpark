@@ -1,13 +1,11 @@
 import { randomUUID } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
-import { type BrowserContext, type Page, expect, test } from "@playwright/test";
+import { type Cookie, type Page, expect, test } from "@playwright/test";
 import pg from "pg";
+import { signIn } from "./helpers/session";
 
-// Seeds straight into the dev server's database (DATABASE_URL), then signs in by cookie.
+// Seeds straight into the dev server's database (DATABASE_URL); helpers/session loads .env.
 // Plain SQL: Playwright's loader can't import the ESM-only generated Prisma client.
-try {
-  process.loadEnvFile();
-} catch {}
 const db = new pg.Client({ connectionString: process.env.DATABASE_URL });
 
 const MIN = 60_000;
@@ -20,21 +18,6 @@ async function insert(sql: string, values: unknown[]): Promise<string> {
   return rows[0].id;
 }
 
-async function seedUser(roles = "{RENTER}", name: string | null = null) {
-  const id = await insert(
-    `INSERT INTO "User" (email, roles, name, "updatedAt") VALUES ($1, $2, $3, now()) RETURNING id`,
-    [`${randomUUID()}@e2e.local`, roles, name],
-  );
-  userIds.push(id);
-  const sessionToken = randomUUID();
-  await db.query(
-    `INSERT INTO "Session" ("sessionToken", "userId", expires, "updatedAt")
-     VALUES ($1, $2, now() + interval '1 hour', now())`,
-    [sessionToken, id],
-  );
-  return { id, sessionToken };
-}
-
 /** Each booking gets its own listing, so the overlap constraint never interferes. */
 async function seedBooking(
   renterId: string,
@@ -43,14 +26,19 @@ async function seedBooking(
   startAt: Date,
   endAt: Date,
 ) {
-  const host = await seedUser("{HOST}", "Asha Host");
+  const hostId = await insert(
+    `INSERT INTO "User" (email, roles, name, "updatedAt")
+     VALUES ($1, '{HOST}', 'Asha Host', now()) RETURNING id`,
+    [`${randomUUID()}@e2e.local`],
+  );
+  userIds.push(hostId);
   const listingId = await insert(
     `INSERT INTO "Listing" ("hostId", title, description, address, locality, lat, lng,
        "approxLat", "approxLng", "spaceType", "vehicleTypes", "hourlyPaise",
        "accessInstructions", status, "updatedAt")
      VALUES ($1, $2, 'Covered', $3, 'Shivajinagar', 18.53, 73.84, 18.531, 73.84, 'STILT',
        '{SEDAN}', 5000, 'Gate code 4321', 'PUBLISHED', now()) RETURNING id`,
-    [host.id, `${title} ${run}`, `12 FC Road ${run}`],
+    [hostId, `${title} ${run}`, `12 FC Road ${run}`],
   );
   listingIds.push(listingId);
   const id = await insert(
@@ -70,11 +58,6 @@ async function seedBooking(
   return { id };
 }
 
-async function signIn(context: BrowserContext, sessionToken: string) {
-  const { baseURL } = test.info().project.use;
-  await context.addCookies([{ name: "authjs.session-token", value: sessionToken, url: baseURL }]);
-}
-
 async function expectAccessibleAt375(page: Page) {
   await page.setViewportSize({ width: 375, height: 812 });
   expect(
@@ -86,14 +69,18 @@ async function expectAccessibleAt375(page: Page) {
   ).toEqual([]);
 }
 
-let renter: Awaited<ReturnType<typeof seedUser>>;
+let renterCookies: Cookie[];
 let confirmed: { id: string };
 let pending: { id: string };
 
-test.beforeAll(async () => {
+test.beforeAll(async ({ browser }) => {
   await db.connect();
+  const ctx = await browser.newContext();
+  const renter = { id: (await signIn(ctx, test.info().project.use.baseURL!)).userId };
+  renterCookies = await ctx.cookies();
+  await ctx.close();
+  userIds.push(renter.id);
   const now = Date.now();
-  renter = await seedUser();
   // Starts a minute ago so the countdown is already on "Time remaining".
   confirmed = await seedBooking(
     renter.id,
@@ -121,12 +108,13 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await db.query(`DELETE FROM "Booking" WHERE "listingId" = ANY($1::uuid[])`, [listingIds]);
   await db.query(`DELETE FROM "Listing" WHERE id = ANY($1::uuid[])`, [listingIds]);
+  // Sessions cascade with their user.
   await db.query(`DELETE FROM "User" WHERE id = ANY($1::uuid[])`, [userIds]);
   await db.end();
 });
 
 test("tabs sort bookings into upcoming, active and past", async ({ page, context }) => {
-  await signIn(context, renter.sessionToken);
+  await context.addCookies(renterCookies);
   await page.goto("/bookings");
 
   const panel = page.getByRole("tabpanel");
@@ -157,7 +145,7 @@ test("confirmed booking shows a countdown, access details and Start parking", as
   page,
   context,
 }) => {
-  await signIn(context, renter.sessionToken);
+  await context.addCookies(renterCookies);
   await page.goto(`/bookings/${confirmed.id}`);
 
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(`Confirmed bay ${run}`);
@@ -169,10 +157,14 @@ test("confirmed booking shows a countdown, access details and Start parking", as
   await expect(start).toBeVisible();
   expect((await start.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   await expectAccessibleAt375(page);
+
+  // Check-in is a Phase 4 stub (501): the UI says so instead of failing.
+  await start.click();
+  await expect(page.getByText("Coming soon")).toBeVisible();
 });
 
 test("pending booking hides access details and has no countdown", async ({ page, context }) => {
-  await signIn(context, renter.sessionToken);
+  await context.addCookies(renterCookies);
   await page.goto(`/bookings/${pending.id}`);
 
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(`Pending bay ${run}`);
@@ -183,13 +175,14 @@ test("pending booking hides access details and has no countdown", async ({ page,
 
   await page.getByRole("button", { name: "Cancel booking" }).click();
   const dialog = page.getByRole("dialog", { name: "Cancel this booking?" });
-  await expect(dialog.getByText(/full refund up to 2 h before start/)).toBeVisible();
+  await expect(
+    dialog.getByText(/Full refund if cancelled at least 2 hours before start/),
+  ).toBeVisible();
   await expectAccessibleAt375(page);
 });
 
-test("another user gets the not-found state for my booking", async ({ page, context }) => {
-  const stranger = await seedUser();
-  await signIn(context, stranger.sessionToken);
+test("another user gets the not-found state for my booking", async ({ page, context, baseURL }) => {
+  userIds.push((await signIn(context, baseURL!)).userId);
   await page.goto(`/bookings/${confirmed.id}`);
 
   await expect(page.getByRole("heading", { name: "We couldn't find that booking" })).toBeVisible();

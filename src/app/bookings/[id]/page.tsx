@@ -17,9 +17,6 @@ import { getBooking } from "@/server/bookings/service";
 import { HttpError } from "@/server/http/errors";
 
 export const metadata: Metadata = { title: "Booking" };
-// The root layout's nav reads usePathname() outside Suspense, which fails the prerender of
-// any dynamic segment. Drop this once src/components/shell/navigation.tsx is wrapped.
-export const instant = false;
 
 // cacheComponents: params and the session are request data, so both are read inside Suspense.
 export default function BookingPage(props: PageProps<"/bookings/[id]">) {
