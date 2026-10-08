@@ -19,7 +19,14 @@ export default defineConfig({
     command: `npm run dev -- -p ${port}`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
-    env: { ...process.env, AUTH_URL: baseURL } as Record<string, string>,
+    // Cloudinary values are obviously fake: signing is local and e2e route-mocks uploads.
+    env: {
+      ...process.env,
+      AUTH_URL: baseURL,
+      CLOUDINARY_CLOUD_NAME: "e2e-test",
+      CLOUDINARY_API_KEY: "000000",
+      CLOUDINARY_API_SECRET: "e2e-not-a-secret",
+    } as Record<string, string>,
   },
   projects: [
     {
