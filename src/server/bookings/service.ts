@@ -5,13 +5,18 @@ import {
   type ListBookingsResponse,
   Uuid,
 } from "@/contracts";
-import { getActivePolicy, POLICY_DEFAULTS, type Policy } from "@/config/policy";
+import {
+  cancellationText,
+  getActivePolicy,
+  overstayText,
+  POLICY_DEFAULTS,
+  type Policy,
+} from "@/config/policy";
 import type { BookingStatus, Prisma } from "@/generated/prisma/client";
 import type { CurrentUser } from "@/server/auth/guards";
 import { createHold } from "@/server/availability/service";
 import { db } from "@/server/db";
 import { HttpError } from "@/server/http/errors";
-import { CANCELLATION_SUMMARIES } from "@/server/listings/policy";
 
 const SCOPES: Record<ListBookingsQuery["scope"], BookingStatus[] | undefined> = {
   upcoming: ["PENDING_PAYMENT", "CONFIRMED"],
@@ -103,7 +108,6 @@ async function detail(b: DetailRow, viewer: CurrentUser): Promise<BookingDetail>
   const isRenter = viewer.id === b.renterId;
   const seesMoney = isHost || viewer.roles.includes("ADMIN");
   const l = b.listing;
-  const grace = `A ${policy.gracePeriodMinutes}-minute grace period applies after your end time.`;
   // Parsing strips any field the contract lacks, so nothing private leaks by accident.
   return BookingDetail.parse({
     ...summary(b),
@@ -114,10 +118,8 @@ async function detail(b: DetailRow, viewer: CurrentUser): Promise<BookingDetail>
     commission: seesMoney ? money(b.commissionPaise) : null,
     hostEarnings: seesMoney ? money(b.hostEarningsPaise) : null,
     terms: {
-      cancellation: CANCELLATION_SUMMARIES[l.cancellationPolicy] ?? CANCELLATION_SUMMARIES.standard,
-      overstay: policy.overstayFeeEnabled
-        ? `${grace} Staying longer may incur an overstay fee.`
-        : `${grace} No overstay fee is charged; stay longer only by extending your booking.`,
+      cancellation: cancellationText(policy, l.cancellationPolicy, b.rentalType),
+      overstay: overstayText(policy),
       gracePeriodMinutes: policy.gracePeriodMinutes,
     },
     gracePeriodEndsAt: new Date(
