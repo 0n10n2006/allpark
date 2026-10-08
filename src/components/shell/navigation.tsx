@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Suspense } from "react";
 import { usePathname } from "next/navigation";
 import { Compass, House, UserRound, CalendarDays } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -12,12 +13,25 @@ const items = [
   { href: "/account", label: "Account", icon: UserRound },
 ];
 
-function isActive(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(`${href}/`);
+function isActive(pathname: string | null, href: string) {
+  return pathname !== null && (pathname === href || pathname.startsWith(`${href}/`));
 }
 
+// cacheComponents: usePathname() suspends on routes with dynamic params, so the links
+// render without an active state as the fallback and gain it once the path resolves.
 function NavigationLinks({ mobile = false }: { mobile?: boolean }) {
-  const pathname = usePathname();
+  return (
+    <Suspense fallback={<LinkList mobile={mobile} pathname={null} />}>
+      <ActiveLinkList mobile={mobile} />
+    </Suspense>
+  );
+}
+
+function ActiveLinkList({ mobile }: { mobile: boolean }) {
+  return <LinkList mobile={mobile} pathname={usePathname()} />;
+}
+
+function LinkList({ mobile, pathname }: { mobile: boolean; pathname: string | null }) {
   return items.map(({ href, label, icon: Icon }) => {
     const active = isActive(pathname, href);
     return (

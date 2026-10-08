@@ -10,13 +10,13 @@ import {
   type UpdateListingBody,
   Uuid,
 } from "@/contracts";
+import { type ActivePolicy, cancellationText, getActivePolicy } from "@/config/policy";
 import type { HostVerificationStatus, Prisma } from "@/generated/prisma/client";
 import { type CurrentUser, assertOwner, requireVerifiedHost } from "@/server/auth/guards";
 import { db } from "@/server/db";
 import { audit } from "@/server/http/audit";
 import { HttpError } from "@/server/http/errors";
 import { listingFolder, photoUrl } from "./cloudinary";
-import { CANCELLATION_SUMMARIES, CITY_BOUNDARY } from "./policy";
 
 type Issue = { path: (string | number)[]; message: string };
 
@@ -88,7 +88,7 @@ function photoDto(p: ListingRow["photos"][number]): ListingPhoto {
   return { id: p.id, url: p.url, position: p.position };
 }
 
-function publicFields(l: ListingRow, rating: Rating) {
+function publicFields(l: ListingRow, rating: Rating, policy: ActivePolicy) {
   return {
     id: l.id,
     title: l.title,
@@ -116,7 +116,7 @@ function publicFields(l: ListingRow, rating: Rating) {
     minDurationMinutes: l.minDurationMinutes,
     cancellationPolicy: {
       key: l.cancellationPolicy,
-      summary: CANCELLATION_SUMMARIES[l.cancellationPolicy] ?? "See listing terms.",
+      summary: cancellationText(policy, l.cancellationPolicy),
     },
     photos: l.photos.filter((p) => p.moderationStatus !== "REJECTED").map(photoDto),
     // "verified" means the host passed ParkShare's host verification, nothing more (FR-11).
@@ -140,9 +140,13 @@ async function ratingOf(listingId: string) {
 
 type Rating = { average: number | null; count: number };
 
-function toOwned(l: ListingRow, rating: Rating = { average: null, count: 0 }): OwnedListing {
+function toOwned(
+  l: ListingRow,
+  policy: ActivePolicy,
+  rating: Rating = { average: null, count: 0 },
+): OwnedListing {
   return OwnedListing.parse({
-    ...publicFields(l, rating),
+    ...publicFields(l, rating, policy),
     photos: l.photos.map(photoDto),
     address: l.address,
     lat: l.lat,
@@ -166,18 +170,18 @@ async function loadOwned(id: string, user: CurrentUser) {
   return listing;
 }
 
-function checkPolicyKey(key: string | undefined) {
-  if (key !== undefined && !(key in CANCELLATION_SUMMARIES))
+function checkPolicyKey(policy: ActivePolicy, key: string | undefined) {
+  if (key !== undefined && !(key in policy.cancellationPolicy))
     throw unprocessable([{ path: ["cancellationPolicy"], message: "Unknown cancellation policy" }]);
 }
 
 /** Every reason a listing can't be public (FR-02 AC1/AC2); empty when publishable. */
-async function publishIssues(l: ListingRow): Promise<Issue[]> {
+async function publishIssues(l: ListingRow, policy: ActivePolicy): Promise<Issue[]> {
   const issues: Issue[] = [];
   if (l.title.trim().length < 3) issues.push({ path: ["title"], message: "Title is required" });
   if (l.description.trim().length < 10)
     issues.push({ path: ["description"], message: "Description is required" });
-  const b = CITY_BOUNDARY;
+  const b = policy.cityBoundary;
   if (!(l.lat >= b.minLat && l.lat <= b.maxLat && l.lng >= b.minLng && l.lng <= b.maxLng))
     issues.push({ path: ["lat"], message: "Location must be inside the Pune service area" });
   if (!l.photos.some((p) => p.moderationStatus !== "REJECTED"))
@@ -196,7 +200,8 @@ async function publishIssues(l: ListingRow): Promise<Issue[]> {
 /** POST /api/listings: any host, verified or not, may create a DRAFT. */
 export async function createListing(user: CurrentUser, body: CreateListingBody) {
   if (!user.roles.includes("HOST")) throw new HttpError("forbidden", "Become a host first");
-  checkPolicyKey(body.cancellationPolicy);
+  const policy = await getActivePolicy();
+  checkPolicyKey(policy, body.cancellationPolicy);
   const { hourlyPaise, dailyPaise, weeklyPaise, monthlyPaise, ...rest } = body;
   const listing = await db.listing.create({
     data: {
@@ -211,7 +216,7 @@ export async function createListing(user: CurrentUser, body: CreateListingBody) 
     },
     include,
   });
-  return toOwned(listing);
+  return toOwned(listing, policy);
 }
 
 /**
@@ -220,21 +225,22 @@ export async function createListing(user: CurrentUser, body: CreateListingBody) 
  */
 export async function updateListing(user: CurrentUser, id: string, body: UpdateListingBody) {
   const current = await loadOwned(id, user);
-  checkPolicyKey(body.cancellationPolicy);
+  const policy = await getActivePolicy();
+  checkPolicyKey(policy, body.cancellationPolicy);
   const data: Prisma.ListingUpdateInput = { ...body };
   if (body.lat !== undefined) data.approxLat = approx(body.lat);
   if (body.lng !== undefined) data.approxLng = approx(body.lng);
   if (current.status !== "PUBLISHED") {
-    return toOwned(await db.listing.update({ where: { id }, data, include }));
+    return toOwned(await db.listing.update({ where: { id }, data, include }), policy);
   }
   // Published: apply and re-validate atomically, so an invalid edit leaves nothing behind.
   const updated = await db.$transaction(async (tx) => {
     const l = await tx.listing.update({ where: { id }, data, include });
-    const issues = await publishIssues(l);
+    const issues = await publishIssues(l, policy);
     if (issues.length) throw unprocessable(issues);
     return l;
   });
-  return toOwned(updated, await ratingOf(id));
+  return toOwned(updated, policy, await ratingOf(id));
 }
 
 /** GET /api/listings/mine */
@@ -256,11 +262,12 @@ export async function listMine(user: CurrentUser, limit: number, cursor?: string
     _avg: { rating: true },
     _count: true,
   });
+  const policy = await getActivePolicy();
   const byId = new Map(
     ratings.map((r) => [r.listingId, { average: r._avg.rating, count: r._count }]),
   );
   return {
-    items: page.map((l) => toOwned(l, byId.get(l.id))),
+    items: page.map((l) => toOwned(l, policy, byId.get(l.id))),
     nextCursor: more ? page.at(-1)!.id : null,
   };
 }
@@ -275,17 +282,18 @@ export async function getPublicListing(id: string, viewer: CurrentUser | null) {
       viewer?.roles.includes("ADMIN"));
   if (!canSee) throw new HttpError("not_found", "Listing not found");
   // Strict parse: a private field slipping in becomes a 500, never a leak (FR-03).
-  return PublicListing.parse(publicFields(listing, await ratingOf(id)));
+  return PublicListing.parse(publicFields(listing, await ratingOf(id), await getActivePolicy()));
 }
 
 /** POST /api/listings/:id/publish: owner, verified host (FR-01 AC2), all checks pass. */
 export async function publishListing(user: CurrentUser, id: string, req: Request) {
   const listing = await loadOwned(id, user);
   await requireVerifiedHost(req);
-  if (listing.status === "PUBLISHED") return toOwned(listing, await ratingOf(id));
+  const policy = await getActivePolicy();
+  if (listing.status === "PUBLISHED") return toOwned(listing, policy, await ratingOf(id));
   if (listing.status !== "DRAFT")
     throw new HttpError("conflict", `A ${listing.status} listing can't be published`);
-  const issues = await publishIssues({ ...listing, hostAttestedAt: new Date() });
+  const issues = await publishIssues({ ...listing, hostAttestedAt: new Date() }, policy);
   if (issues.length) throw unprocessable(issues);
   // Moderation pre-review: PENDING_REVIEW is admin-triggered only; passing checks auto-publish.
   const updated = await db.listing.update({
@@ -293,7 +301,7 @@ export async function publishListing(user: CurrentUser, id: string, req: Request
     data: { status: "PUBLISHED", hostAttestedAt: listing.hostAttestedAt ?? new Date() },
     include,
   });
-  return toOwned(updated);
+  return toOwned(updated, policy);
 }
 
 /** Admin suspension (called by T4.6). Suspended listings drop out of public GET and search. */
