@@ -13,7 +13,6 @@ const expect = baseExpect.configure({ timeout: 15_000 });
 test.describe.configure({ timeout: 90_000 });
 
 // AUTH_URL is localhost; mutations from any other origin are rejected as cross-site.
-test.use({ baseURL: "http://localhost:3000" });
 
 async function sql(text: string, params: unknown[] = []) {
   const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
