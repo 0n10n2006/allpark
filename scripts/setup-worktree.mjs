@@ -18,6 +18,8 @@ if (!adminUrl) {
   console.warn("PARKSHARE_PG_ADMIN_URL is not configured; skipping database setup.");
   process.exit(0);
 }
+// Stable per-worktree dev/e2e port in 3100-3899, so parallel worktrees never share a server.
+const port = 3100 + ([...taskId].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % 800);
 const dbName = `parkshare_${taskId}`;
 const testName = `${dbName}_test`;
 const { default: pg } = await import("pg"); // after npm ci, so fresh worktrees work
@@ -36,7 +38,8 @@ writeFileSync(
     `DATABASE_URL=${toDatabaseUrl(dbName)}`,
     `TEST_DATABASE_URL=${toDatabaseUrl(testName)}`,
     `AUTH_SECRET=${randomBytes(32).toString("hex")}`,
-    "AUTH_URL=http://localhost:3000",
+    `AUTH_URL=http://localhost:${port}`,
+    `E2E_PORT=${port}`,
     "EMAIL_FROM=ParkShare <noreply@example.com>",
     `CRON_SECRET=${randomBytes(32).toString("hex")}`,
     "APP_TIMEZONE=Asia/Kolkata",
