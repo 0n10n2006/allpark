@@ -197,6 +197,22 @@ describe("area and ordering", () => {
     const pricey = await seedListing({ hourlyPaise: 9_000 });
     const cheap = await seedListing({ hourlyPaise: 1_000, approxLat: 18.55, lat: 18.55 });
     expect(await ids({ ...near, sort: "price" })).toEqual([cheap.id, pricey.id]);
+    const first = await search({ ...near, sort: "price", limit: 1 });
+    expect(first.items.map((c) => c.id)).toEqual([cheap.id]);
+    const second = await search({
+      ...near,
+      sort: "price",
+      limit: 1,
+      cursor: first.body.nextCursor,
+    });
+    expect(second.items.map((c) => c.id)).toEqual([pricey.id]);
+    expect(second.body.nextCursor).toBeNull();
+  });
+
+  test("space types", async () => {
+    const stilt = await seedListing({ spaceType: "STILT" });
+    await seedListing({ spaceType: "DRIVEWAY" });
+    expect(await ids({ ...near, spaceTypes: "STILT,GARAGE" })).toEqual([stilt.id]);
   });
 
   test("a viewport outside Pune is empty; one straddling the edge is clamped", async () => {
