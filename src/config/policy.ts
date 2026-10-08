@@ -72,3 +72,47 @@ export async function getActivePolicy(now = new Date()): Promise<ActivePolicy> {
     version: row.version,
   };
 }
+
+const RENTAL_LABEL: Record<RentalType, string> = {
+  HOURLY: "Hourly",
+  DAILY: "Daily",
+  MULTI_DAY: "Multi-day",
+  WEEKLY: "Weekly",
+  MONTHLY: "Monthly",
+};
+
+/**
+ * Human-readable cancellation terms for a listing's policy key (FR-10). With a rental
+ * type, that type's tiers; without, every type, each prefixed with its label.
+ * Unknown keys fall back to "standard".
+ */
+export function cancellationText(policy: Policy, key: string, rentalType?: RentalType): string {
+  const table = policy.cancellationPolicy[key] ?? policy.cancellationPolicy.standard;
+  const tiersText = (tiers: CancellationTier[]) =>
+    tiers
+      .map(({ minHoursBefore, refundBps }) => {
+        const refund =
+          refundBps === 10000
+            ? "Full refund"
+            : refundBps === 0
+              ? "No refund"
+              : `${refundBps / 100}% refund`;
+        return minHoursBefore > 0
+          ? `${refund} if cancelled at least ${minHoursBefore} hours before start`
+          : `${refund} if cancelled later`;
+      })
+      .join("; ")
+      .concat(".");
+  if (rentalType) return tiersText(table[rentalType]);
+  return (Object.keys(RENTAL_LABEL) as RentalType[])
+    .filter((t) => table[t])
+    .map((t) => `${RENTAL_LABEL[t]}: ${tiersText(table[t])}`)
+    .join(" ");
+}
+
+export function overstayText(policy: Policy): string {
+  const grace = `A ${policy.gracePeriodMinutes}-minute grace period applies after your end time.`;
+  return policy.overstayFeeEnabled
+    ? `${grace} Staying longer may incur an overstay fee.`
+    : `${grace} No overstay fee is charged; stay longer only by extending your booking.`;
+}

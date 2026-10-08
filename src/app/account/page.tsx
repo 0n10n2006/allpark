@@ -1,16 +1,15 @@
-import { UserRound } from "lucide-react";
-import { EmptyState } from "@/components/common/empty-state";
+import type { Metadata } from "next";
+import { AccountView } from "@/components/account/account-view";
+
+export const metadata: Metadata = { title: "Your account" };
+
+// Signed-out visitors are redirected to sign-in by src/proxy.ts; AccountView also
+// redirects on a 401, and every /api/me route enforces auth server-side.
 export default function AccountPage() {
   return (
-    <>
-      <h1 className="text-3xl font-bold">Your account</h1>
-      <div className="mt-8">
-        <EmptyState
-          icon={UserRound}
-          title="Account setup is coming soon"
-          body="Manage your ParkShare profile and preferences here."
-        />
-      </div>
-    </>
+    <div className="mx-auto max-w-2xl">
+      <h1 className="mb-6 text-3xl font-bold">Your account</h1>
+      <AccountView />
+    </div>
   );
 }

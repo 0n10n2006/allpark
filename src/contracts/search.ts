@@ -26,11 +26,16 @@ export const SearchListingsQuery = PaginationQuery.extend({
   startAt: IsoDateTime.optional(),
   endAt: IsoDateTime.optional(),
   rentalType: z.enum(RentalType).optional(),
+  /** Unit price range for `rentalType` (or the lowest offered unit price without one). */
+  minPricePaise: z.coerce.number().int().min(0).optional(),
   maxPricePaise: z.coerce.number().int().min(0).optional(),
   vehicleType: z.enum(VehicleType).optional(),
   spaceTypes: splitComma.pipe(z.array(z.enum(SpaceType))).optional(),
   covered: z.stringbool().optional(),
+  /** The renter's vehicle size: listings whose set limit is smaller are excluded. */
   minHeightCm: z.coerce.number().int().positive().optional(),
+  minWidthCm: z.coerce.number().int().positive().optional(),
+  minLengthCm: z.coerce.number().int().positive().optional(),
   amenities: splitComma.pipe(z.array(z.enum(["lit", "evCharging", "security"]))).optional(),
   sort: z.enum(["distance", "price"]).default("distance"),
 });
