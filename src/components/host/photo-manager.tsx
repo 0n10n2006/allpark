@@ -72,6 +72,10 @@ export function PhotoManager({
       setAnnounce(`${files.length} photo${files.length === 1 ? "" : "s"} uploaded.`);
     });
 
+  /** Keep keyboard focus on the photo the user just acted on (re-ordering blurs it). */
+  const focusLater = (id: string) =>
+    requestAnimationFrame(() => document.getElementById(id)?.focus());
+
   const move = (i: number, to: number) =>
     run(async () => {
       const ids = photos.map((p) => p.id);
@@ -80,6 +84,10 @@ export function PhotoManager({
         photoIds: ids,
       });
       onChange(r.items);
+      const moved = photos[i].id;
+      const dir = to < i ? "up" : "down";
+      const atEdge = dir === "up" ? to === 0 : to === r.items.length - 1;
+      focusLater(`photo-${moved}-${atEdge ? (dir === "up" ? "down" : "up") : dir}`);
       setAnnounce(`Photo moved to position ${to + 1}${to === 0 ? ", now the cover photo" : ""}.`);
     });
 
@@ -90,6 +98,8 @@ export function PhotoManager({
         "DELETE",
       );
       onChange(r.items);
+      const next = r.items[Math.min(i, r.items.length - 1)];
+      focusLater(next ? `photo-${next.id}-delete` : "photo-upload");
       setAnnounce(`Photo ${i + 1} deleted.`);
     });
 
@@ -117,6 +127,7 @@ export function PhotoManager({
           <Upload aria-hidden="true" className="size-4" />
           {busy ? "Working…" : "Upload photos"}
           <input
+            id="photo-upload"
             type="file"
             accept={TYPES.join(",")}
             multiple
@@ -157,7 +168,9 @@ export function PhotoManager({
                   <Button
                     type="button"
                     variant="outline"
+                    id={`photo-${p.id}-up`}
                     className="min-h-11 min-w-11"
+                    focusableWhenDisabled
                     disabled={busy || i === 0}
                     onClick={() => void move(i, i - 1)}
                   >
@@ -167,7 +180,9 @@ export function PhotoManager({
                   <Button
                     type="button"
                     variant="outline"
+                    id={`photo-${p.id}-down`}
                     className="min-h-11 min-w-11"
+                    focusableWhenDisabled
                     disabled={busy || i === photos.length - 1}
                     onClick={() => void move(i, i + 1)}
                   >
@@ -177,7 +192,9 @@ export function PhotoManager({
                   <Button
                     type="button"
                     variant="destructive"
+                    id={`photo-${p.id}-delete`}
                     className="min-h-11 min-w-11"
+                    focusableWhenDisabled
                     disabled={busy}
                     onClick={() => void remove(p.id, i)}
                   >

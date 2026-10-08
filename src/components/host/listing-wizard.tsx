@@ -113,7 +113,7 @@ export function ListingWizard({ mode }: { mode: "new" | "edit" }) {
           );
           setScheduleLoaded(true);
         } catch {
-          // ponytail: GET availability is still a stub (T2.1); unchanged steps don't overwrite.
+          // Couldn't load it: an unchanged step won't POST, so the saved schedule survives.
           setScheduleLoaded(false);
         }
       }
@@ -139,11 +139,21 @@ export function ListingWizard({ mode }: { mode: "new" | "edit" }) {
     window.history.pushState(null, "", `${pathFor(id)}?step=${s}`);
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }));
   /** Replace this step's errors, keep the other steps' (e.g. from a publish attempt). */
-  const showErrors = (errs: FieldErrors, s: StepKey = step) =>
+  const showErrors = (errs: FieldErrors, s: StepKey = step) => {
     setErrors((prev) => ({
       ...Object.fromEntries(Object.entries(prev).filter(([k]) => stepOf([k]) !== s)),
       ...errs,
     }));
+    focusFirstError(errs);
+  };
+  /** Move focus to the first invalid field (or the step heading) so the error is announced. */
+  const focusFirstError = (errs: Record<string, string>) => {
+    const first = Object.keys(errs).find((k) => errs[k]);
+    if (first)
+      requestAnimationFrame(() =>
+        (document.getElementById(`f-${first}`) ?? headingRef.current)?.focus(),
+      );
+  };
 
   if (load.kind === "loading") return <LoadingState label="Loading the listing editor" />;
   if (load.kind === "error")
@@ -179,7 +189,7 @@ export function ListingWizard({ mode }: { mode: "new" | "edit" }) {
       if (step === "availability") {
         const errs = scheduleErrors(schedule);
         setRowErrors(errs);
-        if (Object.keys(errs).length) return;
+        if (Object.keys(errs).length) return focusFirstError(errs);
         if (listing && scheduleDirty) {
           const r = await api<GetAvailabilityResponse>(
             `/api/listings/${listing.id}/availability`,
@@ -210,6 +220,7 @@ export function ListingWizard({ mode }: { mode: "new" | "edit" }) {
         const errs = validate(body, form, true);
         if (Object.keys(errs).length) {
           setErrors(errs);
+          focusFirstError(errs);
           const first = stepOf([Object.keys(errs)[0]]);
           if (first !== step)
             setSaveError(`Fix the ${STEPS.find((s) => s.key === first)!.label} step first.`);
@@ -504,8 +515,8 @@ export function ListingWizard({ mode }: { mode: "new" | "edit" }) {
           <>
             {!scheduleLoaded && !scheduleDirty ? (
               <p className="rounded-lg border p-3 text-sm">
-                Your saved schedule can&apos;t be displayed here yet. Leave this step as it is to
-                keep it; any change you make here replaces the whole schedule.
+                Your saved schedule couldn&apos;t be loaded. Leave this step as it is to keep it;
+                any change you make here replaces the whole schedule.
               </p>
             ) : null}
             {errors.availability ? (

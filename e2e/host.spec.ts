@@ -130,6 +130,7 @@ test("a host drafts a listing through every step and publishes once verified", a
   await expectAccessible(page);
   await page.getByRole("button", { name: "Continue" }).press("Enter");
   await expect(page.getByText("Enter a title of 3 to 120 characters.")).toBeVisible();
+  await expect(page.getByLabel("Title")).toBeFocused();
   await page.getByLabel("Title").fill(DRAFT.title);
   await page.getByLabel("Description", { exact: true }).fill(DRAFT.description);
   await page.getByLabel("Space type").selectOption("COVERED");
@@ -193,6 +194,11 @@ test("a host drafts a listing through every step and publishes once verified", a
   await expect(card.getByText("Published")).toBeVisible();
   await expect(card.getByText("From ₹40 / hour")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Verified host" })).toBeVisible();
+
+  // The saved schedule round-trips into the editor.
+  await card.getByRole("link", { name: /Edit/ }).click();
+  await page.getByRole("link", { name: "5. Availability" }).click();
+  await expect(page.getByLabel("Open 24 hours, 7 days a week")).toBeChecked();
 });
 
 test("photos upload with exactly the signed params, reorder, and delete", async ({
@@ -228,9 +234,10 @@ test("photos upload with exactly the signed params, reorder, and delete", async 
       .locator("img")
       .evaluateAll((imgs) => imgs.map((i) => (i as HTMLImageElement).src));
   const before = await srcs();
-  await page.getByRole("button", { name: "Move photo 2 up" }).click();
+  await page.getByRole("button", { name: "Move photo 2 up" }).press("Enter");
   await expect(page.getByText("Photo moved to position 1, now the cover photo.")).toBeAttached();
   expect(await srcs()).toEqual([before[1], before[0]]);
+  await expect(page.getByRole("button", { name: "Move photo 1 down" })).toBeFocused();
 
   await page.getByRole("button", { name: "Delete photo 1" }).click();
   await expect(page.getByAltText("Photo 2")).toHaveCount(0);
