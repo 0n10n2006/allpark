@@ -14,6 +14,7 @@ export default defineConfig({
   testDir: "e2e",
   // First request compiles the route in dev mode (slow on Windows); one retry absorbs it.
   retries: 1,
+  timeout: 60_000,
   use: { baseURL },
   webServer: {
     command: `npm run dev -- -p ${port}`,
