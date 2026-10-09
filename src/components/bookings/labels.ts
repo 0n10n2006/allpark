@@ -40,6 +40,7 @@ export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
   PENDING: "Payment processing",
   SUCCEEDED: "Paid",
   FAILED: "Payment failed",
+  CAPTURED_UNFULFILLED: "Paid — being refunded",
 };
 
 export const REFUND_STATUS_LABEL: Record<RefundStatus, string> = {
