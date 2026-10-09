@@ -3,7 +3,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { signIn } from "./helpers/session";
 
 // Mutations must come from AUTH_URL's origin (src/server/http/route.ts assertSameOrigin).
-const BASE = "http://localhost:3000";
+const BASE = `http://localhost:${process.env.E2E_PORT ?? 3000}`; // same as playwright.config
 test.use({ baseURL: BASE });
 
 async function openAccount(page: Page) {
