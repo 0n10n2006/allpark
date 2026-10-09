@@ -1,46 +1,40 @@
-import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import pg from "pg";
+import { signIn } from "./helpers/session";
 
-if (existsSync(".env")) process.loadEnvFile(".env");
+// helpers/session loads .env, so DATABASE_URL is set by now.
 const db = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
 test.afterAll(() => db.end());
 
-// The API rejects a mutating request whose Origin isn't AUTH_URL's (localhost, not 127.0.0.1).
-const ORIGIN = process.env.E2E_ORIGIN ?? "http://localhost:3000";
-test.use({ baseURL: ORIGIN });
 // A cold `next dev` compiles each page and API route on first hit; allow for that.
 test.describe.configure({ timeout: 120_000 });
 const SLOW = { timeout: 30_000 };
 
 const DAY = 24 * 60 * 60 * 1000;
 
-/** A seeded PUBLISHED listing, open 24×7, that fits renter1's hatchback and renter3's sedan. */
+/** A seeded PUBLISHED listing, open 24×7, that takes hatchbacks. */
 async function seededListing() {
   const { rows } = await db.query<{ id: string; address: string; accessInstructions: string }>(
     `SELECT l.id, l.address, l."accessInstructions" FROM "Listing" l
      WHERE l.status = 'PUBLISHED' AND l."hourlyPaise" IS NOT NULL
-       AND 'HATCHBACK' = ANY(l."vehicleTypes") AND 'SEDAN' = ANY(l."vehicleTypes")
+       AND 'HATCHBACK' = ANY(l."vehicleTypes")
        AND (SELECT count(*) FROM "AvailabilityRule" a
             WHERE a."listingId" = l.id AND a."startMinute" = 0 AND a."endMinute" = 1440) = 7
      ORDER BY l.title LIMIT 1`,
   );
-  expect(rows[0], "seed has a 24x7 hatchback+sedan listing").toBeTruthy();
+  expect(rows[0], "seed has a 24x7 listing that takes hatchbacks").toBeTruthy();
   return rows[0];
 }
 
-/** Signs in by inserting an Auth.js database session for a seeded user. */
-async function signIn(context: BrowserContext, email: string) {
-  const token = randomUUID();
-  const { rowCount } = await db.query(
-    `INSERT INTO "Session" ("sessionToken", "userId", expires, "updatedAt")
-     SELECT $1, id, now() + interval '1 day', now() FROM "User" WHERE email = $2`,
-    [token, email],
+/** A fresh signed-in renter with one hatchback. */
+async function signInRenter(context: BrowserContext, baseURL: string) {
+  const { userId } = await signIn(context, baseURL);
+  await db.query(
+    `INSERT INTO "Vehicle" ("userId", registration, type, "heightCm", "updatedAt")
+     VALUES ($1, 'MH12ZZ0001', 'HATCHBACK', 150, now())`,
+    [userId],
   );
-  expect(rowCount).toBe(1);
-  await context.addCookies([{ name: "authjs.session-token", value: token, url: ORIGIN }]);
 }
 
 /** IST wall-clock "YYYY-MM-DDTHH:mm" for an instant (IST = UTC+5:30, no DST). */
@@ -69,8 +63,8 @@ test("signed out: approximate location only, sign in to book", async ({ page }) 
   await page.goto(`/listings/${listing.id}`);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible(SLOW);
   await expect(page.getByRole("heading", { name: "Availability, next 7 days" })).toBeVisible();
-  const signIn = page.getByRole("link", { name: "Sign in to book" });
-  await expect(signIn).toHaveAttribute(
+  const cta = page.getByRole("link", { name: "Sign in to book" });
+  await expect(cta).toHaveAttribute(
     "href",
     `/sign-in?callbackUrl=${encodeURIComponent(`/listings/${listing.id}`)}`,
   );
@@ -88,6 +82,7 @@ test("suspended listing is a 404 state", async ({ page }) => {
 
 test("quote, agree, reserve, checkout; a second renter sees 'just taken'", async ({
   browser,
+  baseURL,
 }, testInfo) => {
   const listing = await seededListing();
   // A far-future slot unique per run and per project, so parallel projects and reruns
@@ -98,7 +93,7 @@ test("quote, agree, reserve, checkout; a second renter sees 'just taken'", async
   const end = istLocal(startUtc + 2 * 60 * 60 * 1000);
 
   const first = await browser.newContext();
-  await signIn(first, "renter1@parkshare.local");
+  await signInRenter(first, baseURL!);
   const page = await first.newPage();
   await page.goto(`/listings/${listing.id}`);
   await quote(page, start, end);
@@ -128,7 +123,7 @@ test("quote, agree, reserve, checkout; a second renter sees 'just taken'", async
   await expectAccessible(page);
 
   const second = await browser.newContext();
-  await signIn(second, "renter3@parkshare.local");
+  await signInRenter(second, baseURL!);
   const other = await second.newPage();
   await other.goto(`/listings/${listing.id}`);
   await quote(other, start, end);

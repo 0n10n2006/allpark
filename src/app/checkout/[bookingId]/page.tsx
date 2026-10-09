@@ -9,10 +9,6 @@ import { HttpError } from "@/server/http/errors";
 
 export const metadata: Metadata = { title: "Checkout" };
 
-// The shell nav reads usePathname() outside Suspense, which can't prerender under an unknown
-// dynamic param; allow this route to block until the shell wraps it (src/components/shell).
-export const instant = false;
-
 // cacheComponents: params, cookies, and the clock are request data, so read them in Suspense.
 export default function CheckoutPage(props: PageProps<"/checkout/[bookingId]">) {
   return (

@@ -10,10 +10,6 @@ import { listVehicles } from "@/server/users/users";
 
 const DAY = 24 * 60 * 60 * 1000;
 
-// The shell nav reads usePathname() outside Suspense, which can't prerender under an unknown
-// dynamic param; allow this route to block until the shell wraps it (src/components/shell).
-export const instant = false;
-
 // cacheComponents: params, cookies, and the clock are request data, so read them in Suspense.
 export default function ListingPage(props: PageProps<"/listings/[id]">) {
   return (

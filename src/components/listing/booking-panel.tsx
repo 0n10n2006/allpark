@@ -10,7 +10,8 @@ import type { BookingDetail, Quote, Vehicle } from "@/contracts";
 type RentalType = Quote["rentalType"];
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { ApiError, api } from "@/components/checkout/api-client";
+import { postWithHeaders, reasonOf } from "@/components/checkout/api-client";
+import { ApiError, api } from "@/lib/api-client";
 import { formatMmSs, useSecondsLeft } from "@/components/checkout/countdown";
 import { formatINR } from "@/lib/money";
 import { APP_TIMEZONE, formatIST, parseISTLocal } from "@/lib/time";
@@ -136,15 +137,15 @@ export function BookingPanel({ listingId, offered, vehicles, allowedVehicleTypes
     setPending("hold");
     setError(null);
     try {
-      const booking = await api<BookingDetail>("/api/bookings/hold", {
-        method: "POST",
-        body: { quoteId: attempt.quote.id },
-        headers: { "Idempotency-Key": attempt.idempotencyKey },
-      });
+      const booking = await postWithHeaders<BookingDetail>(
+        "/api/bookings/hold",
+        { quoteId: attempt.quote.id },
+        { "Idempotency-Key": attempt.idempotencyKey },
+      );
       router.push(`/checkout/${booking.id}`);
       return; // stay pending until the checkout page loads
     } catch (e) {
-      if (e instanceof ApiError && e.reason === "slot_unavailable") {
+      if (reasonOf(e) === "slot_unavailable") {
         setTaken(true);
         changed();
       } else if (e instanceof ApiError && e.status === 422) {
