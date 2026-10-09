@@ -128,11 +128,23 @@ test("tabs sort bookings into upcoming, active and past", async ({ page, context
   await expect(panel.getByText(`Finished bay ${run}`)).toHaveCount(0);
   await expectAccessibleAt375(page);
 
+  expect(
+    (await page.getByRole("tab", { name: /Past/ }).boundingBox())!.height,
+  ).toBeGreaterThanOrEqual(44);
   await page.getByRole("tab", { name: /Past/ }).click();
   await expect(panel.getByText(`Finished bay ${run}`)).toBeVisible();
   await expect(panel.getByText("Completed")).toBeVisible();
   await expectAccessibleAt375(page);
 
+  // A finished booking no longer exposes the address or gate code.
+  await panel.getByText(`Finished bay ${run}`).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(`Finished bay ${run}`);
+  await expect(page.getByTestId("access-pending")).toBeVisible();
+  await expect(page.getByText("Gate code 4321")).toHaveCount(0);
+  await expect(page.getByTestId("countdown")).toHaveCount(0);
+  await page.goBack();
+
+  await expect(page.getByRole("tab", { name: /Upcoming/ })).toBeVisible();
   await page.getByRole("tab", { name: /Active/ }).click();
   await expect(panel.getByRole("link", { name: "Find parking" })).toHaveAttribute(
     "href",

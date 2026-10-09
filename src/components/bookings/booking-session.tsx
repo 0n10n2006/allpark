@@ -319,7 +319,8 @@ function ActionDialog({
       <DialogTrigger render={<Button className={actionClass} variant="outline" />}>
         {trigger}
       </DialogTrigger>
-      <DialogContent>
+      {/* The footer's full-size close button replaces the small corner X (44px targets). */}
+      <DialogContent showCloseButton={false}>
         <form
           className="grid gap-4"
           onSubmit={async (e) => {

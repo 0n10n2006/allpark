@@ -91,7 +91,8 @@ async function BookingContent({ params }: PageProps<"/bookings/[id]">) {
 }
 
 function AccessCard({ b }: { b: BookingDetail }) {
-  const a = b.access;
+  // Hidden once the stay is over, even though the API still returns it for COMPLETED.
+  const a = b.status === "COMPLETED" ? null : b.access;
   return (
     <section aria-labelledby="access-title" className="rounded-xl border p-4">
       <h2 id="access-title" className="text-lg font-semibold">
@@ -137,7 +138,9 @@ function AccessCard({ b }: { b: BookingDetail }) {
         <p className="text-muted-foreground mt-2 text-sm" data-testid="access-pending">
           {b.status === "PENDING_PAYMENT"
             ? "The exact address, access instructions and host contact appear here once your payment is confirmed."
-            : "Access details are only shown for confirmed bookings."}
+            : b.status === "COMPLETED"
+              ? "Access details are no longer shown because this booking has ended."
+              : "Access details are only shown for confirmed bookings."}
         </p>
       )}
     </section>

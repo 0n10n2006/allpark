@@ -45,9 +45,9 @@ async function BookingTabs() {
 
   return (
     <Tabs defaultValue={initial}>
-      <TabsList className="h-11 w-full sm:w-fit">
+      <TabsList className="w-full group-data-horizontal/tabs:h-auto sm:w-fit">
         {TABS.map((t, i) => (
-          <TabsTrigger key={t.scope} value={t.scope} className="min-h-10 px-4">
+          <TabsTrigger key={t.scope} value={t.scope} className="min-h-11 px-4">
             {t.label}
             {pages[i].items.length > 0 ? ` (${pages[i].items.length})` : ""}
           </TabsTrigger>
