@@ -17,7 +17,9 @@ const DAY = 24 * 60 * 60 * 1000;
 async function seededListing() {
   const { rows } = await db.query<{ id: string; address: string; accessInstructions: string }>(
     `SELECT l.id, l.address, l."accessInstructions" FROM "Listing" l
-     WHERE l.status = 'PUBLISHED' AND l."hourlyPaise" IS NOT NULL
+     JOIN "User" u ON u.id = l."hostId"
+     WHERE u.email LIKE 'host_@parkshare.local'
+       AND l.status = 'PUBLISHED' AND l."hourlyPaise" IS NOT NULL
        AND 'HATCHBACK' = ANY(l."vehicleTypes")
        AND (SELECT count(*) FROM "AvailabilityRule" a
             WHERE a."listingId" = l.id AND a."startMinute" = 0 AND a."endMinute" = 1440) = 7
@@ -132,6 +134,18 @@ test("quote, agree, reserve, checkout; a second renter sees 'just taken'", async
   await expect(other.getByText("Just taken")).toBeVisible(SLOW);
   // Inputs survive so the renter can just pick another time.
   await expect(other.getByLabel("Start (IST)")).toHaveValue(start);
+
+  // Hold runs out → "expired, start again" → a fresh, usable booking panel.
+  const bookingId = page.url().split("/").pop();
+  await db.query(
+    `UPDATE "Booking" SET "holdExpiresAt" = now() - interval '1 second' WHERE id = $1`,
+    [bookingId],
+  );
+  await page.reload();
+  await expect(page.getByText("Your hold has expired")).toBeVisible(SLOW);
+  await page.getByRole("link", { name: "Start again" }).click();
+  await expect(page.getByRole("button", { name: "Get price" })).toBeEnabled(SLOW);
+  await expect(page.getByRole("button", { name: /^Reserve for/ })).toHaveCount(0);
 
   await first.close();
   await second.close();
