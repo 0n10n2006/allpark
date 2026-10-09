@@ -20,6 +20,7 @@ export default defineConfig({
     command: `npm run dev -- -p ${port}`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
+    timeout: 180_000, // cold dev boot is slow on Windows while other worktrees build
     // Cloudinary values are obviously fake: signing is local and e2e route-mocks uploads.
     env: {
       ...process.env,
