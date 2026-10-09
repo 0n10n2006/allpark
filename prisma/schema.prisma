@@ -519,7 +519,8 @@ model Payment {
   id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   bookingId           String        @db.Uuid
   provider            String        @default("razorpay")
-  providerOrderId     String        @unique
+  /// Not unique: two captures on one order (e.g. two tabs) each get a row; the extra is refunded.
+  providerOrderId     String
   providerPaymentId   String?       @unique
   amountPaise         Int
   currency            String        @default("INR")
@@ -534,6 +535,7 @@ model Payment {
   refunds Refund[]
 
   @@index([bookingId])
+  @@index([providerOrderId])
 }
 
 model Refund {
