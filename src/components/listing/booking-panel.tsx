@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { TZDate } from "@date-fns/tz";
@@ -44,6 +44,7 @@ type Attempt = { quote: Quote; idempotencyKey: string };
 
 export function BookingPanel({ listingId, offered, vehicles, allowedVehicleTypes }: Props) {
   const router = useRouter();
+  const [navigating, startNavigation] = useTransition();
   const ids = useId();
   const [rentalType, setRentalType] = useState<RentalType>(offered[0]?.type ?? "HOURLY");
   const [start, setStart] = useState("");
@@ -142,8 +143,10 @@ export function BookingPanel({ listingId, offered, vehicles, allowedVehicleTypes
         { quoteId: attempt.quote.id },
         { "Idempotency-Key": attempt.idempotencyKey },
       );
-      router.push(`/checkout/${booking.id}`);
-      return; // stay pending until the checkout page loads
+      // The hidden listing route stays mounted (Activity): reset it so "Back" or
+      // "Start again" shows a fresh panel, never a used quote and its spent key.
+      changed();
+      startNavigation(() => router.push(`/checkout/${booking.id}`));
     } catch (e) {
       if (reasonOf(e) === "slot_unavailable") {
         setTaken(true);
@@ -319,7 +322,7 @@ export function BookingPanel({ listingId, offered, vehicles, allowedVehicleTypes
           type="submit"
           variant={q ? "outline" : "default"}
           className="h-11 w-full"
-          disabled={pending !== null}
+          disabled={pending !== null || navigating}
         >
           {pending === "quote" ? "Getting price…" : q ? "Update price" : "Get price"}
         </Button>
@@ -347,6 +350,7 @@ export function BookingPanel({ listingId, offered, vehicles, allowedVehicleTypes
             </AlertDescription>
           </Alert>
         ) : null}
+        {navigating ? <p className="text-muted-foreground text-sm">Opening checkout…</p> : null}
         {pending === "quote" ? (
           <p className="text-muted-foreground text-sm">Calculating your price…</p>
         ) : null}
@@ -395,7 +399,7 @@ export function BookingPanel({ listingId, offered, vehicles, allowedVehicleTypes
 
           <Button
             className="h-11 w-full"
-            disabled={!agreed || quoteExpired || pending !== null}
+            disabled={!agreed || quoteExpired || pending !== null || navigating}
             onClick={() => void reserve()}
           >
             {pending === "hold" ? "Reserving…" : `Reserve for ${formatINR(q.total.paise)}`}
