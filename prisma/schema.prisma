@@ -81,6 +81,8 @@ enum PaymentStatus {
   PENDING
   SUCCEEDED
   FAILED
+  /// Captured, but the booking couldn't be confirmed (slot taken or booking cancelled): refunded.
+  CAPTURED_UNFULFILLED
 }
 
 enum RefundStatus {

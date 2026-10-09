@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "PaymentStatus" ADD VALUE 'CAPTURED_UNFULFILLED';
