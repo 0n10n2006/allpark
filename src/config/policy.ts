@@ -54,17 +54,21 @@ export type ActivePolicy = Policy & { id: string; version: number };
  * Latest effective PolicyVersion merged over the defaults. If no row exists yet (fresh
  * DB), version 1 is created from the defaults, because quotes need a version to reference.
  */
+// upsert isn't atomic in Postgres (concurrent first calls raised P2002); ON CONFLICT DO NOTHING is.
+async function createDefaultPolicy() {
+  await db.policyVersion.createMany({
+    data: [{ version: 1, policy: POLICY_DEFAULTS, effectiveAt: new Date(0) }],
+    skipDuplicates: true,
+  });
+  return db.policyVersion.findUniqueOrThrow({ where: { version: 1 } });
+}
+
 export async function getActivePolicy(now = new Date()): Promise<ActivePolicy> {
   const row =
     (await db.policyVersion.findFirst({
       where: { effectiveAt: { lte: now } },
       orderBy: { version: "desc" },
-    })) ??
-    (await db.policyVersion.upsert({
-      where: { version: 1 },
-      create: { version: 1, policy: POLICY_DEFAULTS, effectiveAt: new Date(0) },
-      update: {},
-    }));
+    })) ?? (await createDefaultPolicy());
   return {
     ...POLICY_DEFAULTS,
     ...(row.policy as Partial<Policy>),
