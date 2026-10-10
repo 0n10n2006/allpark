@@ -105,17 +105,28 @@ export async function reclaimForPayment(tx: Tx, bookingId: string): Promise<bool
   const [row] = await tx.$queryRaw<{ status: BookingStatus }[]>`
     SELECT status FROM "Booking" WHERE id = ${bookingId}::uuid`;
   if (!row || (row.status !== "PENDING_PAYMENT" && row.status !== "EXPIRED")) return false;
-  await tx.$executeRaw`SAVEPOINT reclaim_for_payment`;
-  try {
-    const count = await tx.$executeRaw`
-      UPDATE "Booking" SET status = 'CONFIRMED', "updatedAt" = now()
-      WHERE id = ${bookingId}::uuid AND status IN ('PENDING_PAYMENT', 'EXPIRED')`;
-    await tx.$executeRaw`RELEASE SAVEPOINT reclaim_for_payment`;
-    if (count === 0) return false;
-  } catch (e) {
-    await tx.$executeRaw`ROLLBACK TO SAVEPOINT reclaim_for_payment`;
-    if (errorCode(e) === "23P01") return false;
-    throw e;
+  // Racing inserts on booking_no_overlap can deadlock (40P01 / Prisma P2034) instead of
+  // raising 23P01: retry from the savepoint, and if it persists treat the slot as taken
+  // (the caller refunds; never a 500).
+  for (let attempt = 1; ; attempt++) {
+    await tx.$executeRaw`SAVEPOINT reclaim_for_payment`;
+    try {
+      const count = await tx.$executeRaw`
+        UPDATE "Booking" SET status = 'CONFIRMED', "updatedAt" = now()
+        WHERE id = ${bookingId}::uuid AND status IN ('PENDING_PAYMENT', 'EXPIRED')`;
+      await tx.$executeRaw`RELEASE SAVEPOINT reclaim_for_payment`;
+      if (count === 0) return false;
+      break;
+    } catch (e) {
+      await tx.$executeRaw`ROLLBACK TO SAVEPOINT reclaim_for_payment`;
+      const code = errorCode(e);
+      if (code === "23P01") return false;
+      if (code === "40P01" || code === "P2034") {
+        if (attempt >= 3) return false;
+        continue;
+      }
+      throw e;
+    }
   }
   await writeAudit(tx, bookingId, null, row.status, "CONFIRMED", "payment_reclaimed");
   return true;
