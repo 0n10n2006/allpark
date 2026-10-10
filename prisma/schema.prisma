@@ -114,6 +114,10 @@ enum DisputeCategory {
   SPACE_UNAVAILABLE
   PAYMENT
   OTHER
+  INCORRECT_LISTING
+  DUPLICATE_CHARGE
+  /// Payment succeeded but the booking couldn't be confirmed (FR-10).
+  BOOKING_FAILURE
 }
 
 enum IncidentStatus {
