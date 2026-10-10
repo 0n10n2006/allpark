@@ -19,7 +19,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { formatINR } from "@/lib/money";
-import { ApiError, type Issue, api, errorMessage } from "./api";
+import { ApiError, type Issue, api, errorMessage } from "@/lib/api-client";
 import {
   AvailabilityEditor,
   EMPTY_SCHEDULE,

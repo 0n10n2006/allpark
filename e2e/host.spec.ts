@@ -1,7 +1,7 @@
-import { randomUUID } from "node:crypto";
-import { expect as baseExpect, test, type BrowserContext, type Page } from "@playwright/test";
+import { expect as baseExpect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import pg from "pg";
+import { signIn } from "./helpers/session";
 
 // The dev server reads .env; so do we, to seed users into the same database.
 try {
@@ -22,26 +22,6 @@ async function sql(text: string, params: unknown[] = []) {
   } finally {
     await client.end();
   }
-}
-
-// ponytail: local session seeding; switch to e2e/helpers/session.ts once T3.4 merges it.
-async function signIn(context: BrowserContext, roles: string[], status = "NOT_STARTED") {
-  const id = randomUUID();
-  const token = randomUUID();
-  await sql(
-    `INSERT INTO "User" (id, email, roles, "hostVerificationStatus", "updatedAt")
-     VALUES ($1, $2, $3::"UserRole"[], $4::"HostVerificationStatus", now())`,
-    [id, `${id}@e2e.local`, roles, status],
-  );
-  await sql(
-    `INSERT INTO "Session" ("sessionToken", "userId", expires, "updatedAt")
-     VALUES ($1, $2, now() + interval '1 hour', now())`,
-    [token, id],
-  );
-  await context.addCookies([
-    { name: "authjs.session-token", value: token, domain: "localhost", path: "/", sameSite: "Lax" },
-  ]);
-  return id;
 }
 
 const verify = (userId: string) =>
@@ -117,7 +97,7 @@ test("a host drafts a listing through every step and publishes once verified", a
   page,
   context,
 }) => {
-  const userId = await signIn(context, ["RENTER", "HOST"], "PENDING");
+  const { userId } = await signIn(context, ["RENTER", "HOST"], "PENDING");
   const uploads = await mockCloudinary(page);
   await page.goto("/host/listings/new");
 
@@ -197,7 +177,7 @@ test("a host drafts a listing through every step and publishes once verified", a
   // The saved schedule round-trips into the editor.
   await card.getByRole("link", { name: /Edit/ }).click();
   await page.getByRole("link", { name: "5. Availability" }).click();
-  await expect(page.getByLabel("Open 24 hours, 7 days a week")).toBeChecked();
+  await expect(page.getByLabel("Open 24 hours, 7 days a week").first()).toBeChecked();
 });
 
 test("photos upload with exactly the signed params, reorder, and delete", async ({
@@ -247,7 +227,7 @@ test("missing upload keys and publish errors are explained with links to the ste
   page,
   context,
 }) => {
-  const userId = await signIn(context, ["HOST"], "PENDING");
+  const { userId } = await signIn(context, ["HOST"], "PENDING");
   await page.route("**/photos/sign", (route) =>
     route.fulfill({
       status: 503,
