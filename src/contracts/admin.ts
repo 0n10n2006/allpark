@@ -6,12 +6,14 @@ import {
   JobStatus,
   ListingStatus,
   PaymentStatus,
+  PayoutStatus,
   RefundStatus,
   UserRole,
 } from "../generated/prisma/enums";
-import { AdminReason, IsoDateTime, Money, PaginationQuery, Uuid, page } from "./common";
+import { AdminReason, Currency, IsoDateTime, Money, PaginationQuery, Uuid, page } from "./common";
 import { BookingDetail } from "./bookings";
 import { Dispute } from "./disputes";
+import { HostPayout } from "./host";
 import { OwnedListing } from "./listings";
 
 // FR-13. Admin-only. Every mutating request carries a required `reason`, written to
@@ -180,3 +182,77 @@ export const AdminResolveDisputeBody = z.strictObject({
   reason: AdminReason,
 });
 export type AdminResolveDisputeBody = z.infer<typeof AdminResolveDisputeBody>;
+
+// ── Payouts (FR-06 AC5/AC6; payoutMode MANUAL: an admin pays, then records the reference) ──
+
+export const AdminPayout = z.object({
+  ...HostPayout.shape,
+  hostId: Uuid,
+  /** Bookings this payout claims. Empty once FAILED (marking failed releases them). */
+  bookingIds: z.array(Uuid),
+});
+export type AdminPayout = z.infer<typeof AdminPayout>;
+
+/** GET /api/admin/payouts */
+export const AdminListPayoutsQuery = PaginationQuery.extend({
+  hostId: Uuid.optional(),
+  payoutStatus: z.enum(PayoutStatus).optional(),
+});
+export type AdminListPayoutsQuery = z.infer<typeof AdminListPayoutsQuery>;
+export const AdminListPayoutsResponse = page(AdminPayout);
+export type AdminListPayoutsResponse = z.infer<typeof AdminListPayoutsResponse>;
+
+/** POST /api/admin/payouts. The amount is computed server-side from the ledger. */
+export const AdminCreatePayoutBody = z.strictObject({
+  hostId: Uuid,
+  bookingIds: z
+    .array(Uuid)
+    .min(1)
+    .max(500)
+    .refine((ids) => new Set(ids).size === ids.length, "Duplicate booking id"),
+  reason: AdminReason,
+});
+export type AdminCreatePayoutBody = z.infer<typeof AdminCreatePayoutBody>;
+
+/** POST /api/admin/payouts/:id/mark-paid. `providerReference` is the bank UTR or transfer id. */
+export const AdminMarkPayoutPaidBody = z.strictObject({
+  providerReference: z.string().trim().min(3).max(200),
+  reason: AdminReason,
+});
+export type AdminMarkPayoutPaidBody = z.infer<typeof AdminMarkPayoutPaidBody>;
+
+/** POST /api/admin/payouts/:id/mark-failed. Releases the bookings so they can be paid again. */
+export const AdminMarkPayoutFailedBody = z.strictObject({ reason: AdminReason });
+export type AdminMarkPayoutFailedBody = z.infer<typeof AdminMarkPayoutFailedBody>;
+
+/** Signed paise: a refund after a payout can make these negative. */
+const SignedPaise = z.number().int();
+
+/** GET /api/admin/payouts/reconciliation */
+export const AdminPayoutReconciliationResponse = z.object({
+  currency: Currency,
+  hosts: z.array(
+    z.object({
+      hostId: Uuid,
+      hostEarningsPaise: SignedPaise,
+      hostRefundsPaise: SignedPaise,
+      /** HOST_PAYOUT ledger rows. */
+      paidOutPaise: SignedPaise,
+      /** hostEarnings − hostRefunds − paidOut, from the ledger. */
+      outstandingPaise: SignedPaise,
+      /** Net earnings of bookings not in a PAID payout (pending + payable + in payout). */
+      unpaidBookingsPaise: SignedPaise,
+      payablePaise: SignedPaise,
+    }),
+  ),
+  discrepancies: z.array(
+    z.object({
+      kind: z.enum(["outstanding_mismatch", "payout_ledger_mismatch"]),
+      hostId: Uuid,
+      payoutId: Uuid.nullable(),
+      expectedPaise: SignedPaise,
+      actualPaise: SignedPaise,
+    }),
+  ),
+});
+export type AdminPayoutReconciliationResponse = z.infer<typeof AdminPayoutReconciliationResponse>;

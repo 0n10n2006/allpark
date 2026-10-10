@@ -345,6 +345,25 @@ export const examples: Record<
       paidOut: inr(0),
       pendingPayout: inr(45000),
       bookingCount: 1,
+      pending: inr(0),
+      payable: inr(45000),
+      payoutMode: "MANUAL",
+      bookings: [
+        {
+          bookingId: ID,
+          listingTitle: "Covered spot near FC Road",
+          startAt: T0,
+          endAt: T1,
+          bookingStatus: "COMPLETED",
+          gross: inr(50000),
+          commission: inr(5000),
+          hostRefunds: inr(0),
+          net: inr(45000),
+          status: "PAYABLE",
+          hostPayoutId: null,
+          payoutStatus: null,
+        },
+      ],
     },
   },
   "GET /api/host/payouts": {
@@ -475,5 +494,67 @@ export const examples: Record<
     params,
     body: { decision: "REJECTED", reason },
     response: adminAction,
+  },
+  "GET /api/admin/payouts": {
+    query: { payoutStatus: "PENDING" },
+    response: {
+      items: [
+        {
+          id: ID,
+          hostId: ID2,
+          amount: inr(45000),
+          status: "PENDING",
+          providerReference: null,
+          failureReason: null,
+          bookingCount: 1,
+          bookingIds: [ID2],
+          paidAt: null,
+          createdAt: T0,
+        },
+      ],
+      nextCursor: null,
+    },
+  },
+  "POST /api/admin/payouts": {
+    body: { hostId: ID2, bookingIds: [ID], reason },
+    response: {
+      id: ID,
+      hostId: ID2,
+      amount: inr(45000),
+      status: "PENDING",
+      providerReference: null,
+      failureReason: null,
+      bookingCount: 1,
+      bookingIds: [ID],
+      paidAt: null,
+      createdAt: T0,
+    },
+  },
+  "POST /api/admin/payouts/:id/mark-paid": {
+    params,
+    body: { providerReference: "UTR123456", reason },
+    response: adminAction,
+  },
+  "POST /api/admin/payouts/:id/mark-failed": {
+    params,
+    body: { reason },
+    response: adminAction,
+  },
+  "GET /api/admin/payouts/reconciliation": {
+    response: {
+      currency: "INR",
+      hosts: [
+        {
+          hostId: ID2,
+          hostEarningsPaise: 45000,
+          hostRefundsPaise: 0,
+          paidOutPaise: 45000,
+          outstandingPaise: 0,
+          unpaidBookingsPaise: 0,
+          payablePaise: 0,
+        },
+      ],
+      discrepancies: [],
+    },
   },
 };
