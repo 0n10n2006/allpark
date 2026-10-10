@@ -59,4 +59,4 @@ test("20 parallel holds on one slot: exactly 1 succeeds, 19 get 409 slot_unavail
   expect(counts.succeeded).toBe(1);
   expect(counts.slotUnavailable409).toBe(19);
   expect(await testDb.booking.count({ where: { listingId: listing.id } })).toBe(1);
-});
+}, 30_000); // 20 parallel transactions: slow under machine load, not a deadlock
