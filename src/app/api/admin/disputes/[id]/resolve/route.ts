@@ -1,9 +1,8 @@
 import { AdminResolveDisputeBody, IdParams } from "@/contracts";
+import { resolveDispute } from "@/server/disputes/service";
 import { route } from "@/server/http/route";
-import { notImplemented } from "../../../../_lib/not-implemented";
 
-// Stub (T2.0). Implemented by T4.6.
 export const POST = route(
   { auth: "admin", params: IdParams, body: AdminResolveDisputeBody },
-  notImplemented,
+  async ({ user, params, body }) => Response.json(await resolveDispute(params.id, user, body)),
 );

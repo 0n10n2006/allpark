@@ -276,6 +276,14 @@ export const endpoints: Endpoint[] = [
 
   // Trust
   {
+    method: "GET",
+    path: "/api/disputes",
+    auth: "user",
+    task: "T4.4",
+    query: PaginationQuery,
+    response: disputes.ListMyDisputesResponse,
+  },
+  {
     method: "POST",
     path: "/api/disputes",
     auth: "user",
@@ -470,15 +478,23 @@ export const endpoints: Endpoint[] = [
     method: "GET",
     path: "/api/admin/disputes",
     auth: "admin",
-    task: "T4.6",
+    task: "T4.4",
     query: admin.AdminListDisputesQuery,
     response: admin.AdminListDisputesResponse,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/disputes/:id",
+    auth: "admin",
+    task: "T4.4",
+    params: IdParams,
+    response: admin.AdminDisputeDetail,
   },
   {
     method: "POST",
     path: "/api/admin/disputes/:id/resolve",
     auth: "admin",
-    task: "T4.6",
+    task: "T4.4",
     params: IdParams,
     body: admin.AdminResolveDisputeBody,
     response: AdminActionResponse,
