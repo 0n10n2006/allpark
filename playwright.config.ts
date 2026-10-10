@@ -31,8 +31,11 @@ export default defineConfig({
     } as Record<string, string>,
   },
   projects: [
+    // Compiles every route once before the specs hit them in parallel (e2e/warmup.setup.ts).
+    { name: "warmup", testMatch: /warmup\.setup\.ts/ },
     {
       name: "mobile",
+      dependencies: ["warmup"],
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 375, height: 812 },
@@ -40,6 +43,6 @@ export default defineConfig({
         hasTouch: true,
       },
     },
-    { name: "desktop", use: { ...devices["Desktop Chrome"] } },
+    { name: "desktop", dependencies: ["warmup"], use: { ...devices["Desktop Chrome"] } },
   ],
 });
