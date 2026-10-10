@@ -63,6 +63,19 @@ describe("POST /api/disputes", () => {
     expect(await testDb.dispute.count({ where: { bookingId: booking.id } })).toBe(2);
   });
 
+  test("accepts every FR-10 case as a category", async () => {
+    const { booking, renter } = await seedBooking();
+    for (const category of [
+      "ACCESS_DENIED",
+      "SPACE_UNAVAILABLE",
+      "INCORRECT_LISTING",
+      "DUPLICATE_CHARGE",
+      "BOOKING_FAILURE",
+      "OVERSTAY",
+    ])
+      expect((await openDispute(renter.cookie, report(booking.id, { category }))).status).toBe(201);
+  });
+
   test("a non-party gets 404", async () => {
     const { booking } = await seedBooking();
     const stranger = await seedSession();

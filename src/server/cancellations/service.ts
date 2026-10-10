@@ -71,23 +71,24 @@ export async function cancelBooking(
 
   await db.$transaction(async (tx) => {
     await transition(tx, id, "CANCELLED", user.id, reason || kind);
-    if (b.status === "PENDING_PAYMENT") return; // only a hold: nothing captured to refund
-    const paid = await refundablePayment(tx, id);
-    if (!paid) return;
-    const amountPaise = isRenter
-      ? Math.min(
-          paid.refundablePaise,
-          computeCancellationRefund({
-            policy,
-            policyKey: b.listing.cancellationPolicy,
-            rentalType: b.rentalType,
-            startAt: b.startAt,
-            now: new Date(),
-            paidPaise: paid.payment.amountPaise,
-          }).refundPaise,
-        )
-      : paid.refundablePaise;
-    if (amountPaise > 0)
+    // A hold (PENDING_PAYMENT) has nothing captured to refund.
+    const paid = b.status === "PENDING_PAYMENT" ? null : await refundablePayment(tx, id);
+    const amountPaise = !paid
+      ? 0
+      : isRenter
+        ? Math.min(
+            paid.refundablePaise,
+            computeCancellationRefund({
+              policy,
+              policyKey: b.listing.cancellationPolicy,
+              rentalType: b.rentalType,
+              startAt: b.startAt,
+              now: new Date(),
+              paidPaise: paid.payment.amountPaise,
+            }).refundPaise,
+          )
+        : paid.refundablePaise;
+    if (paid && amountPaise > 0)
       await createRefundTx(tx, {
         paymentId: paid.payment.id,
         amountPaise,
