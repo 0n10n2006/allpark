@@ -190,6 +190,22 @@ export type HoldInput = {
 const TX_OPTIONS = { maxWait: 15_000, timeout: 15_000 };
 
 /**
+ * Concurrent inserts racing on the exclusion constraint can deadlock (Postgres 40P01,
+ * surfaced by Prisma as P2034) instead of raising 23P01. A retry sees the winner's
+ * committed row and fails cleanly with 23P01 → 409.
+ */
+async function withDeadlockRetry<T>(run: () => Promise<T>, attempts = 3): Promise<T> {
+  for (let i = 1; ; i++) {
+    try {
+      return await run();
+    } catch (e) {
+      const code = errorCode(e);
+      if (i >= attempts || (code !== "40P01" && code !== "P2034")) throw e;
+    }
+  }
+}
+
+/**
  * Creates a PENDING_PAYMENT hold (FR-04). Idempotent per (renterId, idempotencyKey):
  * a repeat returns the same booking. 409 `slot_unavailable` when the slot is taken,
  * 422 with a `reason` for schedule, vehicle, or quote problems.
@@ -219,55 +235,57 @@ export async function createHold(input: HoldInput): Promise<Booking> {
 
   let booking: Booking;
   try {
-    booking = await db.$transaction(async (tx) => {
-      const listing = await tx.listing.findUnique({
-        where: { id: input.listingId },
-        include: { availabilityRules: true, exceptions: true },
-      });
-      if (!listing)
-        throw unprocessable("listing_unavailable", "This listing isn't taking bookings");
-      const problem = scheduleProblem(listing, startAt, endAt, input.rentalType);
-      if (problem) throw unprocessable(problem.reason, problem.message);
+    booking = await withDeadlockRetry(() =>
+      db.$transaction(async (tx) => {
+        const listing = await tx.listing.findUnique({
+          where: { id: input.listingId },
+          include: { availabilityRules: true, exceptions: true },
+        });
+        if (!listing)
+          throw unprocessable("listing_unavailable", "This listing isn't taking bookings");
+        const problem = scheduleProblem(listing, startAt, endAt, input.rentalType);
+        if (problem) throw unprocessable(problem.reason, problem.message);
 
-      const vehicle = await tx.vehicle.findUnique({ where: { id: input.vehicleId! } });
-      if (!vehicle || vehicle.userId !== renterId || vehicle.deletedAt)
-        throw unprocessable("vehicle_not_found", "Vehicle not found");
-      const tooBig = (size: number | null, max: number | null) =>
-        size != null && max != null && size > max;
-      if (
-        !listing.vehicleTypes.includes(vehicle.type) ||
-        tooBig(vehicle.heightCm, listing.maxHeightCm) ||
-        tooBig(vehicle.widthCm, listing.maxWidthCm) ||
-        tooBig(vehicle.lengthCm, listing.maxLengthCm)
-      )
-        throw unprocessable("vehicle_incompatible", "This vehicle doesn't fit this space");
+        const vehicle = await tx.vehicle.findUnique({ where: { id: input.vehicleId! } });
+        if (!vehicle || vehicle.userId !== renterId || vehicle.deletedAt)
+          throw unprocessable("vehicle_not_found", "Vehicle not found");
+        const tooBig = (size: number | null, max: number | null) =>
+          size != null && max != null && size > max;
+        if (
+          !listing.vehicleTypes.includes(vehicle.type) ||
+          tooBig(vehicle.heightCm, listing.maxHeightCm) ||
+          tooBig(vehicle.widthCm, listing.maxWidthCm) ||
+          tooBig(vehicle.lengthCm, listing.maxLengthCm)
+        )
+          throw unprocessable("vehicle_incompatible", "This vehicle doesn't fit this space");
 
-      const blockedUntil = new Date(endAt.getTime() + listing.turnoverBufferMinutes * MIN);
-      await expireStaleHolds(tx, { listingId: listing.id, startAt, blockedUntil });
-      const [{ now }] = await tx.$queryRaw<{ now: Date }[]>`SELECT now() AS now`;
-      return tx.booking.create({
-        data: {
-          listingId: listing.id,
-          renterId,
-          vehicleId: vehicle.id,
-          rentalType: input.rentalType,
-          startAt,
-          endAt,
-          blockedUntil,
-          status: "PENDING_PAYMENT",
-          holdExpiresAt: new Date(now.getTime() + policy.holdTtlMinutes * MIN),
-          quoteId: quote.id,
-          monthlyAgreementId: input.monthlyAgreementId,
-          subtotalPaise: quote.subtotalPaise,
-          renterFeePaise: quote.renterFeePaise,
-          commissionPaise: quote.commissionPaise,
-          hostEarningsPaise: quote.hostEarningsPaise,
-          totalPaise: quote.totalPaise,
-          currency: quote.currency,
-          idempotencyKey,
-        },
-      });
-    }, TX_OPTIONS);
+        const blockedUntil = new Date(endAt.getTime() + listing.turnoverBufferMinutes * MIN);
+        await expireStaleHolds(tx, { listingId: listing.id, startAt, blockedUntil });
+        const [{ now }] = await tx.$queryRaw<{ now: Date }[]>`SELECT now() AS now`;
+        return tx.booking.create({
+          data: {
+            listingId: listing.id,
+            renterId,
+            vehicleId: vehicle.id,
+            rentalType: input.rentalType,
+            startAt,
+            endAt,
+            blockedUntil,
+            status: "PENDING_PAYMENT",
+            holdExpiresAt: new Date(now.getTime() + policy.holdTtlMinutes * MIN),
+            quoteId: quote.id,
+            monthlyAgreementId: input.monthlyAgreementId,
+            subtotalPaise: quote.subtotalPaise,
+            renterFeePaise: quote.renterFeePaise,
+            commissionPaise: quote.commissionPaise,
+            hostEarningsPaise: quote.hostEarningsPaise,
+            totalPaise: quote.totalPaise,
+            currency: quote.currency,
+            idempotencyKey,
+          },
+        });
+      }, TX_OPTIONS),
+    );
   } catch (e) {
     switch (errorCode(e)) {
       case "23P01":
