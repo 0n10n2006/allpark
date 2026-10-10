@@ -5,7 +5,7 @@ import { ArrowDown, ArrowUp, Trash2, Upload } from "lucide-react";
 import type { ListingPhoto, ListingPhotosResponse, SignPhotoUploadResponse } from "@/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ApiError, api, errorMessage } from "./api";
+import { ApiError, api, errorMessage } from "@/lib/api-client";
 
 const TYPES = ["image/jpeg", "image/png", "image/webp"];
 

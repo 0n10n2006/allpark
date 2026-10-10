@@ -1,6 +1,6 @@
 import { CreateListingBody, UpdateListingBody, type OwnedListing } from "@/contracts";
 import { rupeesToPaise } from "@/lib/money";
-import type { Issue } from "./api";
+import type { Issue } from "@/lib/api-client";
 
 export const STEPS = [
   { key: "basics", label: "Basics" },

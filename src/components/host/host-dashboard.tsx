@@ -9,7 +9,7 @@ import { ErrorState } from "@/components/common/error-state";
 import { LoadingState } from "@/components/common/loading-state";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { api, errorMessage } from "./api";
+import { api, errorMessage } from "@/lib/api-client";
 import { STATUS_LABELS, priceFrom } from "./labels";
 
 type Status = HostStatusResponse["hostVerificationStatus"];

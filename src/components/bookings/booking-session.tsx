@@ -6,11 +6,11 @@ import { toast } from "sonner";
 import {
   type BookingDetail,
   CreateDisputeBody,
-  ErrorEnvelope,
   type ExtendBookingResponse,
   type RenewMonthlyResponse,
 } from "@/contracts";
 import type { DisputeCategory } from "@/generated/prisma/enums";
+import { api, ApiError, newIdempotencyKey } from "@/lib/api-client";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -76,43 +76,23 @@ function spokenDuration(ms: number) {
   return bits.join(" ");
 }
 
-/** POSTs to a booking API. 501 (Phase 4 stubs) shows "coming soon"; returns null on any failure. */
-async function post<T>(path: string, body: unknown, idempotencyKey?: string): Promise<T | null> {
-  try {
-    const res = await fetch(path, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
-      },
-      body: JSON.stringify(body),
-    });
-    if (res.status === 501) {
+function handleBookingError(e: unknown) {
+  if (e instanceof ApiError) {
+    if (e.status === 501) {
       toast.info("Coming soon", { description: "This action isn't available yet." });
-      return null;
+      return;
     }
-    const json = await res.json().catch(() => null);
-    if (!res.ok) {
-      const env = ErrorEnvelope.safeParse(json);
-      toast.error(
-        env.success && env.data.error.message
-          ? env.data.error.message
-          : "Something went wrong. Please try again.",
-      );
-      return null;
-    }
-    return json as T;
-  } catch {
-    toast.error("You seem to be offline. Check your connection and try again.");
-    return null;
+    toast.error(e.message || "Something went wrong. Please try again.");
+    return;
   }
+  toast.error("You seem to be offline. Check your connection and try again.");
 }
 
 /** A fresh Idempotency-Key per attempt; kept across retries of a failed attempt. */
 function useIdempotencyKey() {
   const key = useRef<string | null>(null);
   return {
-    get: () => (key.current ??= crypto.randomUUID()),
+    get: () => (key.current ??= newIdempotencyKey()),
     reset: () => void (key.current = null),
   };
 }
@@ -282,11 +262,14 @@ function SimpleAction({
       disabled={busy}
       onClick={async () => {
         setBusy(true);
-        const res = await post(path, {});
-        setBusy(false);
-        if (res) {
+        try {
+          await api(path, { method: "POST", body: {} });
           toast.success(success);
           onDone();
+        } catch (e) {
+          handleBookingError(e);
+        } finally {
+          setBusy(false);
         }
       }}
     >
@@ -367,12 +350,20 @@ function CancelDialog({ b, onDone }: { b: BookingDetail; onDone: () => void }) {
         </>
       }
       onSubmit={async () => {
-        const res = await post(`/api/bookings/${b.id}/cancel`, {}, key.get());
-        if (!res) return false;
-        key.reset();
-        toast.success("Booking cancelled.");
-        onDone();
-        return true;
+        try {
+          await api(`/api/bookings/${b.id}/cancel`, {
+            method: "POST",
+            body: {},
+            headers: { "idempotency-key": key.get() },
+          });
+          key.reset();
+          toast.success("Booking cancelled.");
+          onDone();
+          return true;
+        } catch (e) {
+          handleBookingError(e);
+          return false;
+        }
       }}
     />
   );
@@ -406,16 +397,20 @@ function ExtendDialog({ b, onDone }: { b: BookingDetail; onDone: () => void }) {
           return false;
         }
         setError(null);
-        const res = await post<ExtendBookingResponse>(
-          `/api/bookings/${b.id}/extend`,
-          { newEndAt: newEnd.toISOString() },
-          key.get(),
-        );
-        if (!res) return false;
-        key.reset();
-        toast.success(res.requiresPayment ? "Pay to confirm your extension." : "Booking extended.");
-        onDone();
-        return true;
+        try {
+          const res = await api<ExtendBookingResponse>(`/api/bookings/${b.id}/extend`, {
+            method: "POST",
+            body: { newEndAt: newEnd.toISOString() },
+            headers: { "idempotency-key": key.get() },
+          });
+          key.reset();
+          toast.success(res.requiresPayment ? "Pay to confirm your extension." : "Booking extended.");
+          onDone();
+          return true;
+        } catch (e) {
+          handleBookingError(e);
+          return false;
+        }
       }}
     >
       <div className="grid gap-2">
@@ -469,12 +464,16 @@ function ReportDialog({ b, onDone }: { b: BookingDetail; onDone: () => void }) {
           return false;
         }
         setError(null);
-        const res = await post("/api/disputes", body.data);
-        if (!res) return false;
-        setDescription("");
-        toast.success("Report sent. We'll be in touch.");
-        onDone();
-        return true;
+        try {
+          await api("/api/disputes", { method: "POST", body: body.data });
+          setDescription("");
+          toast.success("Report sent. We'll be in touch.");
+          onDone();
+          return true;
+        } catch (e) {
+          handleBookingError(e);
+          return false;
+        }
       }}
     >
       <div className="grid gap-2">
@@ -544,16 +543,20 @@ function MonthlyCard({ b }: { b: BookingDetail }) {
           disabled={busy}
           onClick={async () => {
             setBusy(true);
-            const res = await post<RenewMonthlyResponse>(
-              `/api/monthly/${m.id}/renew`,
-              {},
-              key.get(),
-            );
-            setBusy(false);
-            if (!res) return;
-            key.reset();
-            toast.success("Next month is held for you. Pay to confirm it.");
-            router.push(`/bookings/${res.hold.id}`);
+            try {
+              const res = await api<RenewMonthlyResponse>(`/api/monthly/${m.id}/renew`, {
+                method: "POST",
+                body: {},
+                headers: { "idempotency-key": key.get() },
+              });
+              key.reset();
+              toast.success("Next month is held for you. Pay to confirm it.");
+              router.push(`/bookings/${res.hold.id}`);
+            } catch (e) {
+              handleBookingError(e);
+            } finally {
+              setBusy(false);
+            }
           }}
         >
           Renew for next month
