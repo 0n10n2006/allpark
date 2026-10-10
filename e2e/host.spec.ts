@@ -141,7 +141,7 @@ test("a host drafts a listing through every step and publishes once verified", a
   await stepHeading(page, 5, "Availability");
   await page.getByRole("button", { name: "Add time range for Monday" }).click();
   await expectAccessible(page);
-  await page.getByLabel("Open 24 hours, 7 days a week").check();
+  await page.getByRole("checkbox", { name: "Open 24 hours, 7 days a week" }).check();
   await page.getByRole("button", { name: "Save and continue" }).press("Enter");
 
   await stepHeading(page, 6, "Photos");
@@ -174,10 +174,12 @@ test("a host drafts a listing through every step and publishes once verified", a
   await expect(card.getByText("From ₹40 / hour")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Verified host" })).toBeVisible();
 
-  // The saved schedule round-trips into the editor.
+  // The saved schedule round-trips into the editor. cacheComponents keeps the step-5 page we
+  // filled in earlier mounted but hidden (<Activity>), so only a role query (visible, in the
+  // a11y tree) is sure to read the fresh editor rather than that stale copy.
   await card.getByRole("link", { name: /Edit/ }).click();
   await page.getByRole("link", { name: "5. Availability" }).click();
-  await expect(page.getByLabel("Open 24 hours, 7 days a week").first()).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "Open 24 hours, 7 days a week" })).toBeChecked();
 });
 
 test("photos upload with exactly the signed params, reorder, and delete", async ({
