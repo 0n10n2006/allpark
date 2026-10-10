@@ -1,16 +1,18 @@
-import { Compass } from "lucide-react";
-import { EmptyState } from "@/components/common/empty-state";
+import { Suspense } from "react";
+import type { Metadata } from "next";
+import { Explore } from "@/components/explore/explore";
+import { Skeleton } from "@/components/ui/skeleton";
+
+export const metadata: Metadata = { title: "Explore parking" };
+
 export default function ExplorePage() {
   return (
     <>
       <h1 className="text-3xl font-bold">Explore parking</h1>
-      <div className="mt-8">
-        <EmptyState
-          icon={Compass}
-          title="Parking spaces are coming soon"
-          body="Explore available spaces around Pune once listings are live."
-        />
-      </div>
+      {/* cacheComponents: the search params are read below this boundary. */}
+      <Suspense fallback={<Skeleton className="mt-6 h-11 w-full" />}>
+        <Explore />
+      </Suspense>
     </>
   );
 }
