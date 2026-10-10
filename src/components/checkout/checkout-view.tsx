@@ -4,16 +4,17 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { BookingDetail } from "@/contracts";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Terms } from "@/components/listing/booking-panel";
 import { formatINR } from "@/lib/money";
 import { formatMmSs, useSecondsLeft } from "./countdown";
+import { PaySection } from "./pay-section";
 
 export type CheckoutBooking = Pick<
   BookingDetail,
   | "id"
   | "status"
+  | "paymentStatus"
   | "holdExpiresAt"
   | "listing"
   | "rentalType"
@@ -29,8 +30,11 @@ export type CheckoutBooking = Pick<
 export function CheckoutView({
   booking,
   serverNow,
+  paymentsConfigured,
 }: {
   booking: CheckoutBooking;
+  /** RAZORPAY_* keys are set on the server. */
+  paymentsConfigured: boolean;
   /** Server clock at render time; the hold expires by server time, not the device's. */
   serverNow: string;
 }) {
@@ -47,26 +51,46 @@ export function CheckoutView({
     skewMs,
   );
   const expired = !held || secondsLeft === 0;
+  // While a payment is being confirmed, a lapsing timer is not the outcome: the server decides.
+  const [paying, setPaying] = useState(false);
+  const refunding = booking.paymentStatus === "CAPTURED_UNFULFILLED";
   const listingHref = `/listings/${booking.listing.id}`;
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <h1 className="text-3xl font-bold">Checkout</h1>
 
-      {booking.status !== "PENDING_PAYMENT" && booking.status !== "EXPIRED" ? (
+      {booking.status === "CONFIRMED" ? (
+        <Alert role="status">
+          <AlertTitle>Booking confirmed</AlertTitle>
+          <AlertDescription>
+            <p>Your payment was received and the space is yours.</p>
+            <Link
+              href={`/bookings/${booking.id}`}
+              className="mt-2 inline-block font-medium underline underline-offset-4"
+            >
+              View booking and access details
+            </Link>
+          </AlertDescription>
+        </Alert>
+      ) : booking.status !== "PENDING_PAYMENT" && booking.status !== "EXPIRED" ? (
         <Alert>
           <AlertTitle>This booking is no longer awaiting payment</AlertTitle>
           <AlertDescription>
+            {refunding ? <p>Your payment is being refunded in full.</p> : null}
             <Link href="/bookings" className="underline underline-offset-4">
               See your bookings
             </Link>
           </AlertDescription>
         </Alert>
-      ) : expired ? (
+      ) : paying ? null : expired ? (
         <Alert variant="destructive" role="alert">
           <AlertTitle>Your hold has expired</AlertTitle>
           <AlertDescription>
-            <p>The space was released so others can book it. You haven&apos;t been charged.</p>
+            <p>
+              The space was released so others can book it.{" "}
+              {refunding ? "Your payment is being refunded in full." : "You haven�t been charged."}
+            </p>
             <Link
               href={listingHref}
               className="mt-2 inline-block font-medium underline underline-offset-4"
@@ -120,15 +144,20 @@ export function CheckoutView({
         <Terms quote={booking} />
       </section>
 
-      <section aria-labelledby="pay-title" className="space-y-3 rounded-xl border p-4 sm:p-6">
-        <h2 id="pay-title" className="text-xl font-semibold">
-          Payment
-        </h2>
-        <p>Payments are connected in the next phase.</p>
-        <Button className="h-11 w-full" disabled>
-          Pay {formatINR(booking.total.paise)}
-        </Button>
-      </section>
+      {booking.status === "PENDING_PAYMENT" ? (
+        <section aria-labelledby="pay-title" className="space-y-3 rounded-xl border p-4 sm:p-6">
+          <h2 id="pay-title" className="text-xl font-semibold">
+            Payment
+          </h2>
+          <PaySection
+            bookingId={booking.id}
+            totalPaise={booking.total.paise}
+            configured={paymentsConfigured}
+            canPay={!expired}
+            onBusyChange={setPaying}
+          />
+        </section>
+      ) : null}
     </div>
   );
 }

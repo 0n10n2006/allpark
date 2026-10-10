@@ -117,8 +117,8 @@ test("quote, agree, reserve, checkout; a second renter sees 'just taken'", async
 
   await expect(page).toHaveURL(/\/checkout\/[0-9a-f-]{36}$/, SLOW);
   await expect(page.getByRole("timer")).toHaveText(/^\d+:\d\d$/, SLOW);
-  await expect(page.getByText("Payments are connected in the next phase.")).toBeVisible();
-  await expect(page.getByRole("button", { name: /^Pay/ })).toBeDisabled();
+  // The Pay flow itself is covered by checkout-pay.spec.ts (T4.1).
+  await expect(page.getByRole("button", { name: /^Pay/ })).toBeVisible();
   await expect(
     page.getByRole("term").filter({ hasText: "Grace period and overstay" }),
   ).toBeVisible();

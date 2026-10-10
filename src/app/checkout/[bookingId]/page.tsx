@@ -6,6 +6,7 @@ import { CheckoutSkeleton, CheckoutView } from "@/components/checkout/checkout-v
 import { getCurrentUser } from "@/server/auth/guards";
 import { getBooking } from "@/server/bookings/service";
 import { HttpError } from "@/server/http/errors";
+import { getPaymentProvider } from "@/server/payments/provider";
 
 export const metadata: Metadata = { title: "Checkout" };
 
@@ -36,6 +37,7 @@ async function CheckoutContent({ params }: PageProps<"/checkout/[bookingId]">) {
       booking={{
         id: booking.id,
         status: booking.status,
+        paymentStatus: booking.paymentStatus,
         holdExpiresAt: booking.holdExpiresAt,
         listing: booking.listing,
         rentalType: booking.rentalType,
@@ -48,6 +50,7 @@ async function CheckoutContent({ params }: PageProps<"/checkout/[bookingId]">) {
         terms: booking.terms,
       }}
       serverNow={new Date().toISOString()}
+      paymentsConfigured={getPaymentProvider() !== null}
     />
   );
 }
