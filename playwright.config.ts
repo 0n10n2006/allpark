@@ -28,6 +28,13 @@ export default defineConfig({
       CLOUDINARY_CLOUD_NAME: "e2e-test",
       CLOUDINARY_API_KEY: "000000",
       CLOUDINARY_API_SECRET: "e2e-not-a-secret",
+      // Razorpay too: e2e/checkout-pay.spec.ts serves a fake Razorpay API on port + 1000 (outside the
+      // 3100-3899 worktree range) and
+      // route-mocks checkout.js; signatures use this fake secret.
+      RAZORPAY_KEY_ID: "rzp_test_e2e_fake",
+      RAZORPAY_KEY_SECRET: "e2e-razorpay-key-secret-not-real",
+      RAZORPAY_WEBHOOK_SECRET: "e2e-razorpay-webhook-secret-not-real",
+      RAZORPAY_API_URL: `http://127.0.0.1:${port + 1000}`,
     } as Record<string, string>,
   },
   projects: [
