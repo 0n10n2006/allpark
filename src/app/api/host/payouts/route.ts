@@ -1,6 +1,9 @@
 import { PaginationQuery } from "@/contracts";
+import { HttpError } from "@/server/http/errors";
 import { route } from "@/server/http/route";
-import { notImplemented } from "../../_lib/not-implemented";
+import { listHostPayouts } from "@/server/payouts/service";
 
-// Stub (T2.0). Implemented by T4.5.
-export const GET = route({ auth: "user", query: PaginationQuery }, notImplemented);
+export const GET = route({ auth: "user", query: PaginationQuery }, async ({ user, query }) => {
+  if (!user.roles.includes("HOST")) throw new HttpError("forbidden", "Host account required");
+  return Response.json(await listHostPayouts(user.id, query));
+});
