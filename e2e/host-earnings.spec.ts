@@ -56,6 +56,7 @@ test("a host with completed bookings sees pending, payable, and paid totals", as
     hostVerificationStatus: "VERIFIED",
   });
   const run = randomUUID().slice(0, 8);
+  // DRAFT, so it never shows up in search; the earnings query ignores listing status.
   const {
     rows: [listing],
   } = await sql(
@@ -63,7 +64,7 @@ test("a host with completed bookings sees pending, payable, and paid totals", as
        "approxLat", "approxLng", "spaceType", "vehicleTypes", "hourlyPaise",
        "accessInstructions", status, "updatedAt")
      VALUES ($1, $2, 'Covered', $3, 'Shivajinagar', 18.53, 73.84, 18.531, 73.84, 'STILT',
-       '{SEDAN}', 5000, 'Gate code 4321', 'PUBLISHED', now()) RETURNING id`,
+       '{SEDAN}', 5000, 'Gate code 4321', 'DRAFT', now()) RETURNING id`,
     [hostId, `Earnings bay ${run}`, `12 FC Road ${run}`],
   );
   const {
