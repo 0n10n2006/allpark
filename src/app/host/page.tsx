@@ -1,16 +1,13 @@
-import { House } from "lucide-react";
-import { EmptyState } from "@/components/common/empty-state";
+import type { Metadata } from "next";
+import { HostDashboard } from "@/components/host/host-dashboard";
+
+export const metadata: Metadata = { title: "Host" };
+
 export default function HostPage() {
   return (
     <>
-      <h1 className="text-3xl font-bold">Host your space</h1>
-      <div className="mt-8">
-        <EmptyState
-          icon={House}
-          title="List your first space"
-          body="Host tools will help you share your parking space."
-        />
-      </div>
+      <h1 className="mb-8 text-3xl font-bold">Host your space</h1>
+      <HostDashboard />
     </>
   );
 }

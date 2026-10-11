@@ -1,6 +1,6 @@
 import type { CreateQuoteBody, Quote, QuoteLineItem } from "@/contracts";
 import { Uuid } from "@/contracts";
-import { type ActivePolicy, getActivePolicy } from "@/config/policy";
+import { cancellationText, getActivePolicy, overstayText } from "@/config/policy";
 import type { PriceQuote, RentalType } from "@/generated/prisma/client";
 import type { CurrentUser } from "@/server/auth/guards";
 import { db } from "@/server/db";
@@ -10,31 +10,6 @@ import { priceFor } from "./calc";
 const QUOTE_TTL_MS = 15 * 60_000;
 /** Slack for clock skew and form-fill time on "start now" requests. */
 const PAST_START_SLACK_MS = 5 * 60_000;
-
-function cancellationText(policy: ActivePolicy, key: string, rentalType: RentalType): string {
-  const tiers = (policy.cancellationPolicy[key] ?? policy.cancellationPolicy.standard)[rentalType];
-  return tiers
-    .map(({ minHoursBefore, refundBps }) => {
-      const refund =
-        refundBps === 10000
-          ? "Full refund"
-          : refundBps === 0
-            ? "No refund"
-            : `${refundBps / 100}% refund`;
-      return minHoursBefore > 0
-        ? `${refund} if cancelled at least ${minHoursBefore} hours before start`
-        : `${refund} if cancelled later`;
-    })
-    .join("; ")
-    .concat(".");
-}
-
-function overstayText(policy: ActivePolicy): string {
-  const grace = `A ${policy.gracePeriodMinutes}-minute grace period applies after your end time.`;
-  return policy.overstayFeeEnabled
-    ? `${grace} Staying longer may incur an overstay fee.`
-    : `${grace} No overstay fee is charged; stay longer only by extending your booking.`;
-}
 
 export async function createQuote(user: CurrentUser, input: CreateQuoteBody): Promise<Quote> {
   const now = new Date();

@@ -14,6 +14,8 @@ export const CreatePaymentOrderResponse = z.object({
   orderId: z.string(),
   keyId: z.string(),
   amount: Money,
+  /** Optional Checkout prefill from the signed-in renter's profile. */
+  prefill: z.object({ name: z.string().optional(), email: z.string().optional() }).optional(),
 });
 export type CreatePaymentOrderResponse = z.infer<typeof CreatePaymentOrderResponse>;
 
