@@ -1,6 +1,10 @@
-import { PaginationQuery } from "@/contracts";
+import { PaginationQuery, Uuid } from "@/contracts";
+import { HttpError } from "@/server/http/errors";
 import { route } from "@/server/http/route";
-import { notImplemented } from "../_lib/not-implemented";
+import { listInbox } from "@/server/notifications";
 
-// Stub (T2.0). Implemented by T2.6.
-export const GET = route({ auth: "user", query: PaginationQuery }, notImplemented);
+export const GET = route({ auth: "user", query: PaginationQuery }, async ({ user, query }) => {
+  if (query.cursor && !Uuid.safeParse(query.cursor).success)
+    throw new HttpError("validation_error", "Invalid cursor");
+  return Response.json(await listInbox(user.id, query));
+});

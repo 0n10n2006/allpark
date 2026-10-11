@@ -254,6 +254,23 @@ export const endpoints: Endpoint[] = [
     body: monthly.RenewMonthlyBody,
     response: monthly.RenewMonthlyResponse,
   },
+  {
+    method: "POST",
+    path: "/api/monthly/:id/cancel",
+    auth: "user",
+    task: "T4.3",
+    params: IdParams,
+    body: monthly.CancelMonthlyBody,
+    response: monthly.CancelMonthlyResponse,
+  },
+  {
+    method: "GET",
+    path: "/api/monthly/:id",
+    auth: "user",
+    task: "T4.3",
+    params: IdParams,
+    response: monthly.MonthlyAgreementDetail,
+  },
 
   // Payments
   {
@@ -405,6 +422,14 @@ export const endpoints: Endpoint[] = [
     query: PaginationQuery,
     response: notifications.ListNotificationsResponse,
   },
+  {
+    method: "POST",
+    path: "/api/notifications/:id/read",
+    auth: "user",
+    task: "T2.6",
+    params: IdParams,
+    response: notifications.MarkNotificationReadResponse,
+  },
 
   // Admin
   {
@@ -507,5 +532,49 @@ export const endpoints: Endpoint[] = [
     params: IdParams,
     body: admin.AdminModerateReviewBody,
     response: AdminActionResponse,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/payouts",
+    auth: "admin",
+    task: "T4.5",
+    query: admin.AdminListPayoutsQuery,
+    response: admin.AdminListPayoutsResponse,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/payouts",
+    auth: "admin",
+    task: "T4.5",
+    idempotent: true,
+    body: admin.AdminCreatePayoutBody,
+    response: admin.AdminPayout,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/payouts/:id/mark-paid",
+    auth: "admin",
+    task: "T4.5",
+    idempotent: true,
+    params: IdParams,
+    body: admin.AdminMarkPayoutPaidBody,
+    response: AdminActionResponse,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/payouts/:id/mark-failed",
+    auth: "admin",
+    task: "T4.5",
+    idempotent: true,
+    params: IdParams,
+    body: admin.AdminMarkPayoutFailedBody,
+    response: AdminActionResponse,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/payouts/reconciliation",
+    auth: "admin",
+    task: "T4.5",
+    response: admin.AdminPayoutReconciliationResponse,
   },
 ];

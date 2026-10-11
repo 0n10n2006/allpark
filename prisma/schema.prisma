@@ -143,6 +143,8 @@ enum SessionEventType {
   GRACE_STARTED
   OVERSTAY_STARTED
   NOTE
+  HOST_CONFIRMED_ARRIVAL
+  NO_SHOW_OR_UNCONFIRMED
 }
 
 enum ModerationStatus {
@@ -417,10 +419,12 @@ model PriceQuote {
   createdAt         DateTime   @default(now()) @db.Timestamptz
   updatedAt         DateTime   @updatedAt @db.Timestamptz
 
-  listing       Listing       @relation(fields: [listingId], references: [id])
-  renter        User          @relation(fields: [renterId], references: [id])
-  policyVersion PolicyVersion @relation(fields: [policyVersionId], references: [id])
-  booking       Booking?
+  listing           Listing       @relation(fields: [listingId], references: [id])
+  renter            User          @relation(fields: [renterId], references: [id])
+  policyVersion     PolicyVersion @relation(fields: [policyVersionId], references: [id])
+  booking           Booking?
+  /// Extension quotes are paid by their own Payment (Payment.extensionQuoteId).
+  extensionPayments Payment[]
 
   @@index([renterId, createdAt])
 }
@@ -531,12 +535,15 @@ model Payment {
   status              PaymentStatus @default(ORDER_CREATED)
   signatureVerifiedAt DateTime?     @db.Timestamptz
   failureReason       String?
+  /// Set when this payment pays for a session extension (not the original booking).
+  extensionQuoteId    String?       @db.Uuid
   reconciledAt        DateTime?     @db.Timestamptz
   createdAt           DateTime      @default(now()) @db.Timestamptz
   updatedAt           DateTime      @updatedAt @db.Timestamptz
 
-  booking Booking  @relation(fields: [bookingId], references: [id])
-  refunds Refund[]
+  booking        Booking     @relation(fields: [bookingId], references: [id])
+  extensionQuote PriceQuote? @relation(fields: [extensionQuoteId], references: [id])
+  refunds        Refund[]
 
   @@index([bookingId])
   @@index([providerOrderId])
@@ -626,7 +633,8 @@ model SessionEvent {
 model OverstayIncident {
   id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   bookingId    String         @db.Uuid
-  reportedById String         @db.Uuid
+  /// Null when opened by the system (grace expiry); host reports set it.
+  reportedById String?        @db.Uuid
   reportedAt   DateTime       @default(now()) @db.Timestamptz
   evidenceUrls String[]
   status       IncidentStatus @default(OPEN)
@@ -636,7 +644,7 @@ model OverstayIncident {
   updatedAt    DateTime       @updatedAt @db.Timestamptz
 
   booking    Booking @relation(fields: [bookingId], references: [id])
-  reportedBy User    @relation(fields: [reportedById], references: [id])
+  reportedBy User?   @relation(fields: [reportedById], references: [id])
 
   @@index([bookingId])
 }

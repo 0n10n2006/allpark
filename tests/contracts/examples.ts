@@ -288,6 +288,68 @@ export const examples: Record<
     response: { booking, quote, requiresPayment: true },
   },
   "POST /api/monthly/:id/renew": { params, body: {}, response: { hold: booking, quote } },
+  "POST /api/monthly/:id/cancel": {
+    params,
+    body: { reason: "Relocating to another city" },
+    response: {
+      success: true,
+      agreementId: ID,
+      status: "NOTICE_GIVEN",
+      endedAt: T1,
+    },
+  },
+  "GET /api/monthly/:id": {
+    params,
+    response: {
+      id: ID,
+      listingId: ID,
+      renterId: ID2,
+      vehicleId: null,
+      status: "ACTIVE",
+      startAt: T0,
+      currentTermStartAt: T0,
+      currentTermEndAt: T1,
+      noticePeriodDays: 7,
+      noticeGivenAt: null,
+      renewalReminderAt: T0,
+      renewalDueAt: T1,
+      endedAt: null,
+      monthlyRate: inr(50000),
+      listing: {
+        id: ID,
+        title: "Covered spot near FC Road",
+        locality: "Shivajinagar",
+        address: "12 FC Road, Pune",
+      },
+      terms: [
+        {
+          id: ID,
+          startAt: T0,
+          endAt: T1,
+          status: "CONFIRMED",
+          total: inr(50000),
+          payments: [
+            {
+              id: ID,
+              amount: inr(50000),
+              status: "SUCCEEDED",
+              createdAt: T0,
+            },
+          ],
+        },
+      ],
+      notices: [
+        {
+          id: ID,
+          action: "monthly.created",
+          reason: null,
+          createdAt: T0,
+          metadata: null,
+        },
+      ],
+      createdAt: T0,
+    },
+  },
   "POST /api/payments/order": {
     body: { bookingId: ID },
     response: {
@@ -346,6 +408,25 @@ export const examples: Record<
       paidOut: inr(0),
       pendingPayout: inr(45000),
       bookingCount: 1,
+      pending: inr(0),
+      payable: inr(45000),
+      payoutMode: "MANUAL",
+      bookings: [
+        {
+          bookingId: ID,
+          listingTitle: "Covered spot near FC Road",
+          startAt: T0,
+          endAt: T1,
+          bookingStatus: "COMPLETED",
+          gross: inr(50000),
+          commission: inr(5000),
+          hostRefunds: inr(0),
+          net: inr(45000),
+          status: "PAYABLE",
+          hostPayoutId: null,
+          payoutStatus: null,
+        },
+      ],
     },
   },
   "GET /api/host/payouts": {
@@ -397,8 +478,10 @@ export const examples: Record<
         },
       ],
       nextCursor: null,
+      unreadCount: 1,
     },
   },
+  "POST /api/notifications/:id/read": { params: { id: ID }, response: { ok: true } },
   "GET /api/admin/users": {
     query: { q: "asha" },
     response: {
@@ -496,5 +579,67 @@ export const examples: Record<
     params,
     body: { decision: "REJECTED", reason },
     response: adminAction,
+  },
+  "GET /api/admin/payouts": {
+    query: { payoutStatus: "PENDING" },
+    response: {
+      items: [
+        {
+          id: ID,
+          hostId: ID2,
+          amount: inr(45000),
+          status: "PENDING",
+          providerReference: null,
+          failureReason: null,
+          bookingCount: 1,
+          bookingIds: [ID2],
+          paidAt: null,
+          createdAt: T0,
+        },
+      ],
+      nextCursor: null,
+    },
+  },
+  "POST /api/admin/payouts": {
+    body: { hostId: ID2, bookingIds: [ID], reason },
+    response: {
+      id: ID,
+      hostId: ID2,
+      amount: inr(45000),
+      status: "PENDING",
+      providerReference: null,
+      failureReason: null,
+      bookingCount: 1,
+      bookingIds: [ID],
+      paidAt: null,
+      createdAt: T0,
+    },
+  },
+  "POST /api/admin/payouts/:id/mark-paid": {
+    params,
+    body: { providerReference: "UTR123456", reason },
+    response: adminAction,
+  },
+  "POST /api/admin/payouts/:id/mark-failed": {
+    params,
+    body: { reason },
+    response: adminAction,
+  },
+  "GET /api/admin/payouts/reconciliation": {
+    response: {
+      currency: "INR",
+      hosts: [
+        {
+          hostId: ID2,
+          hostEarningsPaise: 45000,
+          hostRefundsPaise: 0,
+          paidOutPaise: 45000,
+          outstandingPaise: 0,
+          unpaidBookingsPaise: 0,
+          payablePaise: 0,
+        },
+      ],
+      discrepancies: [],
+    },
   },
 };

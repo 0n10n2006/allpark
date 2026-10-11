@@ -39,6 +39,8 @@ Auth `user` = signed-in session; `admin` = ADMIN role. Mutating admin requests r
 | POST | `/api/bookings/:id/check-out` | user | params: `IdParams`<br>body: `CheckOutBody` | `BookingDetail` | T4.2 |
 | POST | `/api/bookings/:id/extend` | user · Idempotency-Key | params: `IdParams`<br>body: `ExtendBookingBody` | `ExtendBookingResponse` | T4.2 |
 | POST | `/api/monthly/:id/renew` | user · Idempotency-Key | params: `IdParams`<br>body: `RenewMonthlyBody` | `RenewMonthlyResponse` | T4.3 |
+| POST | `/api/monthly/:id/cancel` | user | params: `IdParams`<br>body: `CancelMonthlyBody` | `CancelMonthlyResponse` | T4.3 |
+| GET | `/api/monthly/:id` | user | params: `IdParams` | `MonthlyAgreementDetail` | T4.3 |
 | POST | `/api/payments/order` | user · Idempotency-Key | body: `CreatePaymentOrderBody` | `CreatePaymentOrderResponse` | T4.1 |
 | POST | `/api/webhooks/razorpay` | public | body: `RazorpayWebhookBody` | `RazorpayWebhookResponse` | T4.1 |
 | GET | `/api/disputes` | user | query: `PaginationQuery` | `ListMyDisputesResponse` | T4.4 |
@@ -57,6 +59,7 @@ Auth `user` = signed-in session; `admin` = ADMIN role. Mutating admin requests r
 | PATCH | `/api/me/preferences` | user | body: `UpdatePreferencesBody` | `Preferences` | T2.5 |
 | POST | `/api/me/deletion-request` | user | body: `DeletionRequestBody` | `DeletionRequestResponse` | T2.5 |
 | GET | `/api/notifications` | user | query: `PaginationQuery` | `ListNotificationsResponse` | T2.6 |
+| POST | `/api/notifications/:id/read` | user | params: `IdParams` | `MarkNotificationReadResponse` | T2.6 |
 | GET | `/api/admin/users` | admin | query: `AdminListUsersQuery` | `AdminListUsersResponse` | T4.6 |
 | POST | `/api/admin/users/:id/verify-host` | admin | params: `IdParams`<br>body: `AdminVerifyHostBody` | `AdminActionResponse` | T4.6 |
 | POST | `/api/admin/users/:id/suspend` | admin | params: `IdParams`<br>body: `AdminSuspendUserBody` | `AdminActionResponse` | T4.6 |
@@ -69,3 +72,8 @@ Auth `user` = signed-in session; `admin` = ADMIN role. Mutating admin requests r
 | GET | `/api/admin/disputes/:id` | admin | params: `IdParams` | `AdminDisputeDetail` | T4.4 |
 | POST | `/api/admin/disputes/:id/resolve` | admin | params: `IdParams`<br>body: `AdminResolveDisputeBody` | `AdminActionResponse` | T4.4 |
 | POST | `/api/admin/reviews/:id/moderate` | admin | params: `IdParams`<br>body: `AdminModerateReviewBody` | `AdminActionResponse` | T4.6 |
+| GET | `/api/admin/payouts` | admin | query: `AdminListPayoutsQuery` | `AdminListPayoutsResponse` | T4.5 |
+| POST | `/api/admin/payouts` | admin · Idempotency-Key | body: `AdminCreatePayoutBody` | `AdminPayout` | T4.5 |
+| POST | `/api/admin/payouts/:id/mark-paid` | admin · Idempotency-Key | params: `IdParams`<br>body: `AdminMarkPayoutPaidBody` | `AdminActionResponse` | T4.5 |
+| POST | `/api/admin/payouts/:id/mark-failed` | admin · Idempotency-Key | params: `IdParams`<br>body: `AdminMarkPayoutFailedBody` | `AdminActionResponse` | T4.5 |
+| GET | `/api/admin/payouts/reconciliation` | admin | — | `AdminPayoutReconciliationResponse` | T4.5 |
