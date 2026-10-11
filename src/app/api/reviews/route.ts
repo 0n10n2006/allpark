@@ -1,6 +1,9 @@
 import { CreateReviewBody } from "@/contracts";
 import { route } from "@/server/http/route";
-import { notImplemented } from "../_lib/not-implemented";
+import { createReview } from "@/server/reviews/service";
 
-// Stub (T2.0). Implemented by T4.4.
-export const POST = route({ auth: "user", body: CreateReviewBody }, notImplemented);
+// POST /api/reviews (renter)
+export const POST = route({ auth: "user", body: CreateReviewBody }, async ({ user, body }) => {
+  const res = await createReview(user, body);
+  return Response.json(res, { status: 201 });
+});

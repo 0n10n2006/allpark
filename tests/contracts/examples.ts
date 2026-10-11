@@ -168,6 +168,20 @@ const availability = {
 
 const adminAction = { ok: true, auditLogId: ID2 };
 const reason = "Checked documents";
+const adminReport = {
+  id: ID,
+  reporterId: ID2,
+  targetType: "LISTING",
+  targetId: ID,
+  reason: "INACCURATE_LISTING",
+  description: "Photos show a different place.",
+  evidenceUrls: [],
+  status: "OPEN",
+  resolution: null,
+  resolvedById: null,
+  resolvedAt: null,
+  createdAt: T0,
+};
 
 export const examples: Record<
   string,
@@ -324,6 +338,24 @@ export const examples: Record<
       createdAt: T0,
     },
   },
+  "GET /api/listings/:id/reviews": {
+    params,
+    query: { limit: "10" },
+    response: {
+      items: [
+        {
+          id: ID2,
+          rating: 5,
+          comment: "Great spot",
+          createdAt: T0,
+          reviewerFirstName: "Asha",
+        },
+      ],
+      nextCursor: null,
+      rating: { average: 5, count: 1 },
+      summary: { average: 5, count: 1 },
+    },
+  },
   "POST /api/reports": {
     body: {
       targetType: "LISTING",
@@ -474,6 +506,15 @@ export const examples: Record<
   "POST /api/admin/reviews/:id/moderate": {
     params,
     body: { decision: "REJECTED", reason },
+    response: adminAction,
+  },
+  "GET /api/admin/reports": {
+    query: { status: "OPEN" },
+    response: { items: [adminReport], nextCursor: null },
+  },
+  "POST /api/admin/reports/:id/resolve": {
+    params,
+    body: { action: "ACTION", resolution: "Suspended listing for violation.", reason },
     response: adminAction,
   },
 };

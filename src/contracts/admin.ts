@@ -13,6 +13,7 @@ import { AdminReason, IsoDateTime, Money, PaginationQuery, Uuid, page } from "./
 import { BookingDetail } from "./bookings";
 import { Dispute } from "./disputes";
 import { OwnedListing } from "./listings";
+import { ReportReason, ReportStatus, ReportTargetType } from "./reports";
 
 // FR-13. Admin-only. Every mutating request carries a required `reason`, written to
 // AuditLog with actor, action, target, and timestamp.
@@ -180,3 +181,36 @@ export const AdminResolveDisputeBody = z.strictObject({
   reason: AdminReason,
 });
 export type AdminResolveDisputeBody = z.infer<typeof AdminResolveDisputeBody>;
+
+export const AdminReport = z.object({
+  id: Uuid,
+  reporterId: Uuid,
+  targetType: ReportTargetType,
+  targetId: Uuid,
+  reason: ReportReason,
+  description: z.string(),
+  evidenceUrls: z.array(z.url()),
+  status: ReportStatus,
+  resolution: z.string().nullable(),
+  resolvedById: Uuid.nullable(),
+  resolvedAt: IsoDateTime.nullable(),
+  createdAt: IsoDateTime,
+});
+export type AdminReport = z.infer<typeof AdminReport>;
+
+/** GET /api/admin/reports: the report moderation queue. */
+export const AdminListReportsQuery = PaginationQuery.extend({
+  status: ReportStatus.optional(),
+  targetType: ReportTargetType.optional(),
+});
+export type AdminListReportsQuery = z.infer<typeof AdminListReportsQuery>;
+export const AdminListReportsResponse = page(AdminReport);
+export type AdminListReportsResponse = z.infer<typeof AdminListReportsResponse>;
+
+/** POST /api/admin/reports/:id/resolve */
+export const AdminResolveReportBody = z.strictObject({
+  action: z.enum(["DISMISS", "ACTION"]),
+  resolution: z.string().trim().min(3).max(5000),
+  reason: AdminReason,
+});
+export type AdminResolveReportBody = z.infer<typeof AdminResolveReportBody>;
