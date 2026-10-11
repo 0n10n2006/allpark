@@ -254,6 +254,23 @@ export const endpoints: Endpoint[] = [
     body: monthly.RenewMonthlyBody,
     response: monthly.RenewMonthlyResponse,
   },
+  {
+    method: "POST",
+    path: "/api/monthly/:id/cancel",
+    auth: "user",
+    task: "T4.3",
+    params: IdParams,
+    body: monthly.CancelMonthlyBody,
+    response: monthly.CancelMonthlyResponse,
+  },
+  {
+    method: "GET",
+    path: "/api/monthly/:id",
+    auth: "user",
+    task: "T4.3",
+    params: IdParams,
+    response: monthly.MonthlyAgreementDetail,
+  },
 
   // Payments
   {
