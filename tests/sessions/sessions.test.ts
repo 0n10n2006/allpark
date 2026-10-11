@@ -198,6 +198,14 @@ describe("reminders and grace jobs", () => {
     ]);
   });
 
+  test("MONTHLY terms get no session reminders or grace jobs (a term end isn't an overstay)", async () => {
+    const s = await seed({ start: 60, end: 180 });
+    await testDb.booking.update({ where: { id: s.id }, data: { rentalType: "MONTHLY" } });
+    await sessions.scheduleSessionJobs(s.id);
+    expect(await testDb.notification.count()).toBe(0);
+    expect(await testDb.job.count({ where: { type: { startsWith: "sessions." } } })).toBe(0);
+  });
+
   test("reminders already in the past are skipped", async () => {
     const s = await seed({ start: -60, end: 20, status: "ACTIVE", checkedIn: true });
     await sessions.scheduleSessionJobs(s.id);
@@ -515,6 +523,14 @@ describe("incidents", () => {
       evidenceUrls: ["https://example.com/x.jpg"],
     });
     expect(bad.status).toBe(422);
+    // A Cloudinary fetch of a remote URL that merely mentions our folder isn't our upload.
+    const fetched = await post(incidentRoute, "incidents", s.id, s.host.cookie, {
+      kind: "OVERSTAY",
+      evidenceUrls: [
+        `https://res.cloudinary.com/${cloud}/image/fetch/https://evil.example/listings/${s.listing.id}/x.jpg`,
+      ],
+    });
+    expect(fetched.status).toBe(422);
     const renter = await post(incidentRoute, "incidents", s.id, s.renter.cookie, {
       kind: "OVERSTAY",
     });

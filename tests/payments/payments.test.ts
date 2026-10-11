@@ -447,5 +447,8 @@ describe("settlement wiring (T4.2, T4.3)", () => {
       where: { id: b.monthlyAgreementId! },
     });
     expect(agreement).toMatchObject({ status: "ACTIVE", currentTermEndAt: b.endAt });
+    // T4.3 owns term end: no session grace jobs or "ending soon" reminders for monthly terms.
+    expect(await testDb.job.count({ where: { type: { startsWith: "sessions." } } })).toBe(0);
+    expect(await testDb.notification.count({ where: { type: "SESSION_ENDING" } })).toBe(0);
   });
 });

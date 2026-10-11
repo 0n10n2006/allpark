@@ -23,7 +23,6 @@ import { transition } from "@/server/bookings/state";
 import { db } from "@/server/db";
 import { HttpError } from "@/server/http/errors";
 import { enqueue } from "@/server/jobs";
-import { listingFolder } from "@/server/listings/cloudinary";
 import { cancelScheduled, notify } from "@/server/notifications";
 import { sessionHooks } from "@/server/payments/session-hooks";
 import { createExtensionOrder } from "@/server/payments/service";
@@ -92,7 +91,9 @@ const payload = (b: Row) => ({
  */
 export async function scheduleSessionJobs(bookingId: string) {
   const b = await db.booking.findUnique({ where: { id: bookingId }, include });
-  if (!b || !SCHEDULABLE.includes(b.status)) return;
+  // MONTHLY terms chain into the next paid term (T4.3 owns term end): a term ending is
+  // not an overstay, so no session reminders or grace jobs.
+  if (!b || !SCHEDULABLE.includes(b.status) || b.rentalType === "MONTHLY") return;
   const policy = await policyOf(b);
   const now = Date.now();
   const end = b.endAt.toISOString();
@@ -539,12 +540,16 @@ function isOurEvidence(raw: string, listingId: string, bookingId: string) {
   const cloud = process.env.CLOUDINARY_CLOUD_NAME;
   if (!cloud) return false;
   const u = new URL(raw);
+  // An upload delivery URL (not /image/fetch/<remote>) in listings/<id>/ or incidents/<id>/.
+  const m = /^\/([^/]+)\/image\/upload\/(?:v\d+\/)?(listings|incidents)\/([^/]+)\/[^/]+$/.exec(
+    u.pathname,
+  );
   return (
     u.protocol === "https:" &&
     u.hostname === "res.cloudinary.com" &&
-    u.pathname.startsWith(`/${cloud}/`) &&
-    (u.pathname.includes(`/${listingFolder(listingId)}/`) ||
-      u.pathname.includes(`/incidents/${bookingId}/`))
+    !!m &&
+    m[1] === cloud &&
+    m[3] === (m[2] === "listings" ? listingId : bookingId)
   );
 }
 
