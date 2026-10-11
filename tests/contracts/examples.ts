@@ -415,8 +415,10 @@ export const examples: Record<
         },
       ],
       nextCursor: null,
+      unreadCount: 1,
     },
   },
+  "POST /api/notifications/:id/read": { params: { id: ID }, response: { ok: true } },
   "GET /api/admin/users": {
     query: { q: "asha" },
     response: {
