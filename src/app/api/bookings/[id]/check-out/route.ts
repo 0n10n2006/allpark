@@ -1,6 +1,8 @@
 import { CheckOutBody, IdParams } from "@/contracts";
 import { route } from "@/server/http/route";
-import { notImplemented } from "../../../_lib/not-implemented";
+import { checkOut } from "@/server/sessions/service";
 
-// Stub (T2.0). Implemented by T4.2.
-export const POST = route({ auth: "user", params: IdParams, body: CheckOutBody }, notImplemented);
+export const POST = route(
+  { auth: "user", params: IdParams, body: CheckOutBody },
+  async ({ user, params, body }) => Response.json(await checkOut(user, params.id, body)),
+);

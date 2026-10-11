@@ -311,6 +311,41 @@ export async function createHold(input: HoldInput): Promise<Booking> {
   return booking;
 }
 
+/**
+ * Sessions (T4.2): moves a live booking's end from `fromEndAt` to `newEndAt` after a paid
+ * extension. Conditional on the end it was priced from, so a stale or repeated extension
+ * is a no-op (false). booking_no_overlap decides: 23P01 → false (the caller refunds).
+ * Runs under a SAVEPOINT so the caller's transaction survives.
+ */
+export async function extendBookingTx(
+  tx: Tx,
+  bookingId: string,
+  fromEndAt: Date,
+  newEndAt: Date,
+  newBlockedUntil: Date,
+): Promise<boolean> {
+  for (let attempt = 1; ; attempt++) {
+    await tx.$executeRaw`SAVEPOINT extend_booking`;
+    try {
+      const count = await tx.$executeRaw`
+        UPDATE "Booking" SET "endAt" = ${newEndAt}, "blockedUntil" = ${newBlockedUntil}, "updatedAt" = now()
+        WHERE id = ${bookingId}::uuid AND "endAt" = ${fromEndAt}
+          AND status IN ('CONFIRMED', 'ACTIVE', 'GRACE_PERIOD')`;
+      await tx.$executeRaw`RELEASE SAVEPOINT extend_booking`;
+      return count === 1;
+    } catch (e) {
+      await tx.$executeRaw`ROLLBACK TO SAVEPOINT extend_booking`;
+      const code = errorCode(e);
+      if (code === "23P01") return false;
+      if (code === "40P01" || code === "P2034") {
+        if (attempt >= 3) return false;
+        continue;
+      }
+      throw e;
+    }
+  }
+}
+
 const MAX_AVAILABILITY_RANGE = 62 * DAY;
 
 /**

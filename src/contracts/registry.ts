@@ -246,6 +246,15 @@ export const endpoints: Endpoint[] = [
   },
   {
     method: "POST",
+    path: "/api/bookings/:id/incidents",
+    auth: "user",
+    task: "T4.2",
+    params: IdParams,
+    body: sessions.ReportIncidentBody,
+    response: sessions.OverstayIncident,
+  },
+  {
+    method: "POST",
     path: "/api/monthly/:id/renew",
     auth: "user",
     task: "T4.3",

@@ -4,9 +4,11 @@ import { errorCode, HttpError } from "@/server/http/errors";
 // PRD §5. The only legal booking status moves; everything else throws.
 export const TRANSITIONS: Record<BookingStatus, readonly BookingStatus[]> = {
   PENDING_PAYMENT: ["CONFIRMED", "EXPIRED", "PAYMENT_FAILED", "CANCELLED"],
-  CONFIRMED: ["ACTIVE", "CANCELLED", "DISPUTED"],
+  // CONFIRMED → GRACE_PERIOD: never checked in by endAt (no-show or unconfirmed; no penalty).
+  CONFIRMED: ["ACTIVE", "GRACE_PERIOD", "CANCELLED", "DISPUTED"],
   ACTIVE: ["GRACE_PERIOD", "COMPLETED", "DISPUTED"],
-  GRACE_PERIOD: ["COMPLETED", "OVERSTAY", "DISPUTED"],
+  // GRACE_PERIOD → ACTIVE: only a paid extension moving endAt back into the future.
+  GRACE_PERIOD: ["ACTIVE", "COMPLETED", "OVERSTAY", "DISPUTED"],
   OVERSTAY: ["COMPLETED", "DISPUTED"],
   DISPUTED: ["COMPLETED", "CANCELLED"],
   COMPLETED: [],

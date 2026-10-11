@@ -285,7 +285,21 @@ export const examples: Record<
   "POST /api/bookings/:id/extend": {
     params,
     body: { newEndAt: T1 },
-    response: { booking, quote, requiresPayment: true },
+    response: { booking, quote, requiresPayment: false, payment: null },
+  },
+  "POST /api/bookings/:id/incidents": {
+    params,
+    body: { kind: "OVERSTAY" },
+    response: {
+      id: ID,
+      bookingId: ID,
+      reportedById: null,
+      reportedAt: T1,
+      evidenceUrls: [],
+      status: "OPEN",
+      resolution: null,
+      resolvedAt: null,
+    },
   },
   "POST /api/monthly/:id/renew": { params, body: {}, response: { hold: booking, quote } },
   "POST /api/payments/order": {
