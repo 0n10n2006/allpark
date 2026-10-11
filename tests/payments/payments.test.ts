@@ -400,3 +400,52 @@ test("reconcile settles a stale order whose webhook never arrived", async () => 
   expect(await status(bookingId)).toBe("CONFIRMED");
   expect(await testDb.auditLog.count({ where: { action: "payment.reconciled" } })).toBe(1);
 });
+
+describe("settlement wiring (T4.2, T4.3)", () => {
+  test("a confirmed booking gets its session reminders and grace jobs", async () => {
+    const { renter, bookingId, orderId } = await ordered();
+    const p = fake.pay(orderId);
+    expect((await confirm(renter.cookie, bookingId, callbackBody(orderId, p.id))).status).toBe(200);
+    const { endAt } = await testDb.booking.findUniqueOrThrow({ where: { id: bookingId } });
+    expect(
+      await testDb.job.count({
+        where: { idempotencyKey: `sessions.startGrace:${bookingId}:${endAt.toISOString()}` },
+      }),
+    ).toBe(1);
+    expect(await testDb.notification.count({ where: { type: "SESSION_ENDING" } })).toBe(2);
+  });
+
+  test("a confirmed MONTHLY booking creates its agreement", async () => {
+    const { monthlyTermEnd } = await import("@/server/availability/service");
+    const listing = await seedListing();
+    const renter = await seedSession();
+    const vehicle = await seedVehicle(renter.user.id);
+    const quote = await seedQuote({
+      listingId: listing.id,
+      renterId: renter.user.id,
+      vehicleId: vehicle.id,
+      rentalType: "MONTHLY",
+      startAt: ist("10:00"),
+      endAt: monthlyTermEnd(ist("10:00")),
+    });
+    const held = await holdRoute(
+      req("/api/bookings/hold", {
+        method: "POST",
+        cookie: renter.cookie,
+        body: { quoteId: quote.id },
+        headers: key(),
+      }),
+      params(""),
+    );
+    const bookingId = (await held.json()).id as string;
+    const { orderId } = await (await createOrder(renter.cookie, bookingId)).json();
+    const p = fake.pay(orderId);
+    expect((await confirm(renter.cookie, bookingId, callbackBody(orderId, p.id))).status).toBe(200);
+    const b = await testDb.booking.findUniqueOrThrow({ where: { id: bookingId } });
+    expect(b.monthlyAgreementId).not.toBeNull();
+    const agreement = await testDb.monthlyAgreement.findUniqueOrThrow({
+      where: { id: b.monthlyAgreementId! },
+    });
+    expect(agreement).toMatchObject({ status: "ACTIVE", currentTermEndAt: b.endAt });
+  });
+});

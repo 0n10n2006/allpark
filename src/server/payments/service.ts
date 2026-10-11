@@ -6,9 +6,10 @@ import { confirmHeldBooking, reclaimForPayment, transition } from "@/server/book
 import { db } from "@/server/db";
 import { HttpError } from "@/server/http/errors";
 import { enqueue } from "@/server/jobs";
-import { extensionHooks } from "./extension-hooks";
+import { onMonthlyConfirmed } from "@/server/monthly/service";
 import { log } from "./log";
 import { sendNotification } from "./notify";
+import { sessionHooks } from "./session-hooks";
 import { getPaymentProvider, type PaymentProvider, type ProviderPayment } from "./provider";
 import { applyRefundOutcome, createRefundTx } from "./refunds";
 
@@ -228,9 +229,10 @@ export async function settleTx(
       hostEarningsPaise: number;
       currency: string;
       renterId: string;
+      rentalType: string;
     }[]
   >`SELECT status::text, ("holdExpiresAt" > now()) AS "holdValid", "totalPaise", "hostEarningsPaise",
-           currency, "renterId"
+           currency, "renterId", "rentalType"::text AS "rentalType"
     FROM "Booking" WHERE id = ${bookingId}::uuid FOR UPDATE`;
 
   const rows = await tx.payment.findMany({
@@ -278,8 +280,8 @@ export async function settleTx(
   let confirmed = false;
   if (!priorCapture) {
     if (ext) {
-      if (!extensionHooks.apply) throw new Error("extension applier not registered");
-      confirmed = await extensionHooks.apply(tx, bookingId, ext);
+      if (!sessionHooks.applyExtension) throw new Error("extension applier not registered");
+      confirmed = await sessionHooks.applyExtension(tx, bookingId, ext);
     } else if (booking.status === "PENDING_PAYMENT" && booking.holdValid) {
       await confirmHeldBooking(tx, bookingId);
       confirmed = true;
@@ -334,6 +336,8 @@ export async function settleTx(
         bookingId,
         extension: { quoteId: ext, applied: true },
       };
+    // Both the held and the re-claimed paths (T4.3).
+    if (booking.rentalType === "MONTHLY") await onMonthlyConfirmed(tx, bookingId);
     const { hostId } = await tx.listing.findFirstOrThrow({
       where: { bookings: { some: { id: bookingId } } },
       select: { hostId: true },
@@ -389,8 +393,9 @@ export async function settleTx(
 /** After commit: BOOKING_CONFIRMED to renter and host, with deterministic keys. */
 async function afterSettle(r: SettleResult) {
   if (r.extension && r.bookingId)
-    await extensionHooks.after?.(r.bookingId, r.extension.quoteId, r.extension.applied);
+    await sessionHooks.extensionSettled?.(r.bookingId, r.extension.quoteId, r.extension.applied);
   if (!r.confirmed || !r.bookingId) return;
+  await sessionHooks.confirmed?.(r.bookingId);
   const payload = { bookingId: r.bookingId };
   await sendNotification(r.confirmed.renterId, "BOOKING_CONFIRMED_RENTER", payload, {
     idempotencyKey: `booking:${r.bookingId}:confirmed:renter`,

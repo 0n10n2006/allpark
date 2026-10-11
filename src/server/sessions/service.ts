@@ -25,7 +25,7 @@ import { HttpError } from "@/server/http/errors";
 import { enqueue } from "@/server/jobs";
 import { listingFolder } from "@/server/listings/cloudinary";
 import { cancelScheduled, notify } from "@/server/notifications";
-import { extensionHooks } from "@/server/payments/extension-hooks";
+import { sessionHooks } from "@/server/payments/session-hooks";
 import { createExtensionOrder } from "@/server/payments/service";
 import { priceFor } from "@/server/pricing/calc";
 
@@ -513,8 +513,9 @@ export async function afterExtension(bookingId: string, quoteId: string, applied
   );
 }
 
-extensionHooks.apply = applyExtensionTx;
-extensionHooks.after = afterExtension;
+sessionHooks.confirmed = scheduleSessionJobs;
+sessionHooks.applyExtension = applyExtensionTx;
+sessionHooks.extensionSettled = afterExtension;
 
 function incidentDto(i: {
   id: string;
