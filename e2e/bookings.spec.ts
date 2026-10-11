@@ -106,6 +106,11 @@ test.beforeAll(async ({ browser }) => {
 });
 
 test.afterAll(async () => {
+  await db.query(
+    `DELETE FROM "SessionEvent" WHERE "bookingId" IN
+       (SELECT id FROM "Booking" WHERE "listingId" = ANY($1::uuid[]))`,
+    [listingIds],
+  );
   await db.query(`DELETE FROM "Booking" WHERE "listingId" = ANY($1::uuid[])`, [listingIds]);
   await db.query(`DELETE FROM "Listing" WHERE id = ANY($1::uuid[])`, [listingIds]);
   // Sessions cascade with their user.
@@ -170,9 +175,10 @@ test("confirmed booking shows a countdown, access details and Start parking", as
   expect((await start.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   await expectAccessibleAt375(page);
 
-  // Check-in is a Phase 4 stub (501): the UI says so instead of failing.
+  // Check-in (T4.2): the session starts and the page refreshes into it.
   await start.click();
-  await expect(page.getByText("Coming soon")).toBeVisible();
+  await expect(page.getByText("Parking started. Enjoy your stay.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "I've left" })).toBeVisible();
 });
 
 test("pending booking hides access details and has no countdown", async ({ page, context }) => {

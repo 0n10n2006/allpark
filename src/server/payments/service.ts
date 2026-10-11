@@ -6,8 +6,10 @@ import { confirmHeldBooking, reclaimForPayment, transition } from "@/server/book
 import { db } from "@/server/db";
 import { HttpError } from "@/server/http/errors";
 import { enqueue } from "@/server/jobs";
+import { onMonthlyConfirmed } from "@/server/monthly/service";
 import { log } from "./log";
 import { sendNotification } from "./notify";
+import { sessionHooks } from "./session-hooks";
 import { getPaymentProvider, type PaymentProvider, type ProviderPayment } from "./provider";
 import { applyRefundOutcome, createRefundTx } from "./refunds";
 
@@ -30,9 +32,11 @@ export type CapturedPayment = {
 export type SettleSource = "callback" | "webhook" | "reconcile";
 export type SettleOutcome =
   | "confirmed"
+  | "extension_applied"
   | "already_settled"
   | "refund_booking_failed"
   | "refund_duplicate_charge"
+  | "refund_extension_unavailable"
   | "amount_mismatch"
   | "unknown_order";
 export type SettleResult = {
@@ -40,6 +44,8 @@ export type SettleResult = {
   bookingId: string | null;
   /** Set when this call confirmed the booking: who to notify after commit. */
   confirmed?: { renterId: string; hostId: string };
+  /** Set when this call settled an extension order (applied, or refunded as unavailable). */
+  extension?: { quoteId: string; applied: boolean };
 };
 
 /** One daily reconcile per UTC day bucket; the job re-schedules the next one. */
@@ -135,6 +141,67 @@ export async function createPaymentOrder(
 }
 
 /**
+ * Sessions (T4.2): an order for an extension's extra time. The amount is the extension
+ * quote's server-side snapshot; the quote must still start at the booking's current end.
+ * An open order for the same quote is reused. Returns null when Razorpay isn't configured.
+ */
+export async function createExtensionOrder(
+  user: CurrentUser,
+  bookingId: string,
+  quoteId: string,
+): Promise<CreatePaymentOrderResponse | null> {
+  const provider = getPaymentProvider();
+  if (!provider) return null;
+  const order = await db.$transaction(async (tx) => {
+    const [b] = await tx.$queryRaw<{ renterId: string; status: string; endAt: Date }[]>`
+      SELECT "renterId", status::text, "endAt" FROM "Booking" WHERE id = ${bookingId}::uuid FOR UPDATE`;
+    if (!b || b.renterId !== user.id) throw new HttpError("not_found", "Booking not found");
+    const quote = await tx.priceQuote.findUnique({ where: { id: quoteId } });
+    if (
+      !quote ||
+      quote.renterId !== user.id ||
+      !["CONFIRMED", "ACTIVE", "GRACE_PERIOD"].includes(b.status) ||
+      quote.startAt.getTime() !== b.endAt.getTime()
+    )
+      throw new HttpError("conflict", "This extension can no longer be paid for", {
+        reason: "extension_stale",
+      });
+    const open = await tx.payment.findFirst({
+      where: { bookingId, extensionQuoteId: quoteId, status: { in: [...OPEN] } },
+      orderBy: { createdAt: "desc" },
+    });
+    if (open) return { orderId: open.providerOrderId, amountPaise: open.amountPaise };
+    const o = await provider.createOrder({
+      amountPaise: quote.totalPaise,
+      currency: quote.currency,
+      receipt: bookingId,
+      notes: { bookingId, extensionQuoteId: quoteId },
+    });
+    if (o.amount !== quote.totalPaise || o.currency !== quote.currency)
+      throw new Error("provider order amount mismatch");
+    await tx.payment.create({
+      data: {
+        bookingId,
+        providerOrderId: o.id,
+        amountPaise: quote.totalPaise,
+        currency: quote.currency,
+        extensionQuoteId: quoteId,
+      },
+    });
+    return { orderId: o.id, amountPaise: quote.totalPaise };
+  }, TX);
+  await scheduleReconcile(new Date());
+  return {
+    bookingId,
+    provider: "razorpay",
+    orderId: order.orderId,
+    keyId: provider.keyId,
+    amount: { paise: order.amountPaise, currency: "INR" },
+    prefill: { name: user.name ?? undefined, email: user.email ?? undefined },
+  };
+}
+
+/**
  * The single settlement function. `p` must already be verified as captured (signed
  * webhook, or signature + provider fetch). Idempotent: re-settling the same payment is a
  * no-op, so duplicate webhooks and a racing callback are harmless (FR-06 AC3).
@@ -162,9 +229,10 @@ export async function settleTx(
       hostEarningsPaise: number;
       currency: string;
       renterId: string;
+      rentalType: string;
     }[]
   >`SELECT status::text, ("holdExpiresAt" > now()) AS "holdValid", "totalPaise", "hostEarningsPaise",
-           currency, "renterId"
+           currency, "renterId", "rentalType"::text AS "rentalType"
     FROM "Booking" WHERE id = ${bookingId}::uuid FOR UPDATE`;
 
   const rows = await tx.payment.findMany({
@@ -193,6 +261,7 @@ export async function settleTx(
         providerOrderId: p.providerOrderId,
         amountPaise: order.amountPaise,
         currency: order.currency,
+        extensionQuoteId: order.extensionQuoteId,
       },
     }));
 
@@ -201,13 +270,19 @@ export async function settleTx(
     failureReason: null,
     ...(source === "callback" ? { signatureVerifiedAt: new Date() } : {}),
   };
+  // Extension orders (T4.2) settle against their own quote: a booking capture and an
+  // extension capture never count as each other's duplicate.
+  const ext = order.extensionQuoteId;
   const priorCapture = await tx.payment.findFirst({
-    where: { bookingId, status: "SUCCEEDED", id: { not: row.id } },
+    where: { bookingId, status: "SUCCEEDED", id: { not: row.id }, extensionQuoteId: ext },
   });
 
   let confirmed = false;
   if (!priorCapture) {
-    if (booking.status === "PENDING_PAYMENT" && booking.holdValid) {
+    if (ext) {
+      if (!sessionHooks.applyExtension) throw new Error("extension applier not registered");
+      confirmed = await sessionHooks.applyExtension(tx, bookingId, ext);
+    } else if (booking.status === "PENDING_PAYMENT" && booking.holdValid) {
       await confirmHeldBooking(tx, bookingId);
       confirmed = true;
     } else {
@@ -219,27 +294,29 @@ export async function settleTx(
   if (confirmed) {
     await tx.payment.update({ where: { id: row.id }, data: { ...captured, status: "SUCCEEDED" } });
     // Append-only. GROSS = COMMISSION + HOST_EARNINGS by construction (any renter fee is platform's).
+    // An extension books its quote's delta; applying it already bumped the booking's totals.
+    const amounts = ext ? await tx.priceQuote.findUniqueOrThrow({ where: { id: ext } }) : booking;
     const ref = p.providerPaymentId;
     await tx.ledgerEntry.createMany({
       data: [
         {
           bookingId,
           account: "RENTER_PAYMENT" as const,
-          amountPaise: booking.totalPaise,
+          amountPaise: amounts.totalPaise,
           reference: ref,
           memo: "gross",
         },
         {
           bookingId,
           account: "PLATFORM_COMMISSION" as const,
-          amountPaise: booking.totalPaise - booking.hostEarningsPaise,
+          amountPaise: amounts.totalPaise - amounts.hostEarningsPaise,
           reference: ref,
           memo: "commission",
         },
         {
           bookingId,
           account: "HOST_EARNINGS" as const,
-          amountPaise: booking.hostEarningsPaise,
+          amountPaise: amounts.hostEarningsPaise,
           reference: ref,
           memo: "host_payable",
         },
@@ -247,7 +324,20 @@ export async function settleTx(
         (e) => ({ ...e, currency: booking.currency }) satisfies Prisma.LedgerEntryCreateManyInput,
       ),
     });
-    await audit(tx, "payment.captured", row.id, { ...p, bookingId, source });
+    await audit(tx, "payment.captured", row.id, {
+      ...p,
+      bookingId,
+      source,
+      ...(ext && { extensionQuoteId: ext }),
+    });
+    if (ext)
+      return {
+        outcome: "extension_applied",
+        bookingId,
+        extension: { quoteId: ext, applied: true },
+      };
+    // Both the held and the re-claimed paths (T4.3).
+    if (booking.rentalType === "MONTHLY") await onMonthlyConfirmed(tx, bookingId);
     const { hostId } = await tx.listing.findFirstOrThrow({
       where: { bookings: { some: { id: bookingId } } },
       select: { hostId: true },
@@ -256,7 +346,11 @@ export async function settleTx(
   }
 
   // Money captured but nothing to fulfil: refund in full (FR-10).
-  const reason = priorCapture ? "duplicate_charge" : "booking_failed_after_payment";
+  const reason = priorCapture
+    ? "duplicate_charge"
+    : ext
+      ? "extension_unavailable"
+      : "booking_failed_after_payment";
   if (booking.status === "PENDING_PAYMENT")
     await transition(tx, bookingId, "PAYMENT_FAILED", null, reason);
   await tx.payment.update({
@@ -287,12 +381,21 @@ export async function settleTx(
     reason,
     source,
   });
+  if (ext && !priorCapture)
+    return {
+      outcome: "refund_extension_unavailable",
+      bookingId,
+      extension: { quoteId: ext, applied: false },
+    };
   return { outcome: priorCapture ? "refund_duplicate_charge" : "refund_booking_failed", bookingId };
 }
 
 /** After commit: BOOKING_CONFIRMED to renter and host, with deterministic keys. */
 async function afterSettle(r: SettleResult) {
+  if (r.extension && r.bookingId)
+    await sessionHooks.extensionSettled?.(r.bookingId, r.extension.quoteId, r.extension.applied);
   if (!r.confirmed || !r.bookingId) return;
+  await sessionHooks.confirmed?.(r.bookingId);
   const payload = { bookingId: r.bookingId };
   await sendNotification(r.confirmed.renterId, "BOOKING_CONFIRMED_RENTER", payload, {
     idempotencyKey: `booking:${r.bookingId}:confirmed:renter`,
