@@ -288,6 +288,68 @@ export const examples: Record<
     response: { booking, quote, requiresPayment: true },
   },
   "POST /api/monthly/:id/renew": { params, body: {}, response: { hold: booking, quote } },
+  "POST /api/monthly/:id/cancel": {
+    params,
+    body: { reason: "Relocating to another city" },
+    response: {
+      success: true,
+      agreementId: ID,
+      status: "NOTICE_GIVEN",
+      endedAt: T1,
+    },
+  },
+  "GET /api/monthly/:id": {
+    params,
+    response: {
+      id: ID,
+      listingId: ID,
+      renterId: ID2,
+      vehicleId: null,
+      status: "ACTIVE",
+      startAt: T0,
+      currentTermStartAt: T0,
+      currentTermEndAt: T1,
+      noticePeriodDays: 7,
+      noticeGivenAt: null,
+      renewalReminderAt: T0,
+      renewalDueAt: T1,
+      endedAt: null,
+      monthlyRate: inr(50000),
+      listing: {
+        id: ID,
+        title: "Covered spot near FC Road",
+        locality: "Shivajinagar",
+        address: "12 FC Road, Pune",
+      },
+      terms: [
+        {
+          id: ID,
+          startAt: T0,
+          endAt: T1,
+          status: "CONFIRMED",
+          total: inr(50000),
+          payments: [
+            {
+              id: ID,
+              amount: inr(50000),
+              status: "SUCCEEDED",
+              createdAt: T0,
+            },
+          ],
+        },
+      ],
+      notices: [
+        {
+          id: ID,
+          action: "monthly.created",
+          reason: null,
+          createdAt: T0,
+          metadata: null,
+        },
+      ],
+      createdAt: T0,
+    },
+  },
   "POST /api/payments/order": {
     body: { bookingId: ID },
     response: {

@@ -39,6 +39,8 @@ Auth `user` = signed-in session; `admin` = ADMIN role. Mutating admin requests r
 | POST | `/api/bookings/:id/check-out` | user | params: `IdParams`<br>body: `CheckOutBody` | `BookingDetail` | T4.2 |
 | POST | `/api/bookings/:id/extend` | user · Idempotency-Key | params: `IdParams`<br>body: `ExtendBookingBody` | `ExtendBookingResponse` | T4.2 |
 | POST | `/api/monthly/:id/renew` | user · Idempotency-Key | params: `IdParams`<br>body: `RenewMonthlyBody` | `RenewMonthlyResponse` | T4.3 |
+| POST | `/api/monthly/:id/cancel` | user | params: `IdParams`<br>body: `CancelMonthlyBody` | `CancelMonthlyResponse` | T4.3 |
+| GET | `/api/monthly/:id` | user | params: `IdParams` | `MonthlyAgreementDetail` | T4.3 |
 | POST | `/api/payments/order` | user · Idempotency-Key | body: `CreatePaymentOrderBody` | `CreatePaymentOrderResponse` | T4.1 |
 | POST | `/api/webhooks/razorpay` | public | body: `RazorpayWebhookBody` | `RazorpayWebhookResponse` | T4.1 |
 | POST | `/api/disputes` | user | body: `CreateDisputeBody` | `Dispute` | T4.4 |

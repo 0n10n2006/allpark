@@ -551,7 +551,7 @@ function MonthlyCard({ b }: { b: BookingDetail }) {
               });
               key.reset();
               toast.success("Next month is held for you. Pay to confirm it.");
-              router.push(`/bookings/${res.hold.id}`);
+              router.push(`/checkout/${res.hold.id}`);
             } catch (e) {
               handleBookingError(e);
             } finally {
