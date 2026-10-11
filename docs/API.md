@@ -67,3 +67,8 @@ Auth `user` = signed-in session; `admin` = ADMIN role. Mutating admin requests r
 | GET | `/api/admin/disputes` | admin | query: `AdminListDisputesQuery` | `AdminListDisputesResponse` | T4.6 |
 | POST | `/api/admin/disputes/:id/resolve` | admin | params: `IdParams`<br>body: `AdminResolveDisputeBody` | `AdminActionResponse` | T4.6 |
 | POST | `/api/admin/reviews/:id/moderate` | admin | params: `IdParams`<br>body: `AdminModerateReviewBody` | `AdminActionResponse` | T4.6 |
+| GET | `/api/admin/payouts` | admin | query: `AdminListPayoutsQuery` | `AdminListPayoutsResponse` | T4.5 |
+| POST | `/api/admin/payouts` | admin · Idempotency-Key | body: `AdminCreatePayoutBody` | `AdminPayout` | T4.5 |
+| POST | `/api/admin/payouts/:id/mark-paid` | admin · Idempotency-Key | params: `IdParams`<br>body: `AdminMarkPayoutPaidBody` | `AdminActionResponse` | T4.5 |
+| POST | `/api/admin/payouts/:id/mark-failed` | admin · Idempotency-Key | params: `IdParams`<br>body: `AdminMarkPayoutFailedBody` | `AdminActionResponse` | T4.5 |
+| GET | `/api/admin/payouts/reconciliation` | admin | — | `AdminPayoutReconciliationResponse` | T4.5 |
