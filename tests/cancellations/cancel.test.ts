@@ -61,6 +61,9 @@ describe("POST /api/bookings/:id/cancel", () => {
       where: { action: "booking.host_cancellation", targetId: booking.id },
     });
     expect(audit).toMatchObject({ actorId: host.id, reason: "Gate broken" });
+    const notices = await testDb.notification.findMany({ where: { type: "CANCELLATION_UPDATE" } });
+    expect(notices.map((n) => n.userId).sort()).toEqual([booking.renterId, host.id].sort());
+    expect(notices[0].payload).toMatchObject({ bookingId: booking.id, cancelledBy: "HOST" });
     expect(
       (await testDb.booking.findUniqueOrThrow({ where: { id: booking.id } })).cancellationReason,
     ).toBe("Gate broken");
