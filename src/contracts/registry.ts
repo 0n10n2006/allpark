@@ -537,7 +537,6 @@ export const endpoints: Endpoint[] = [
   },
   {
     method: "GET",
-<<<<<<< HEAD
     path: "/api/admin/payouts",
     auth: "admin",
     task: "T4.5",
@@ -580,7 +579,8 @@ export const endpoints: Endpoint[] = [
     task: "T4.5",
     response: admin.AdminPayoutReconciliationResponse,
   },
-=======
+  {
+    method: "GET",
     path: "/api/admin/reports",
     auth: "admin",
     task: "T4.4b",
@@ -596,5 +596,4 @@ export const endpoints: Endpoint[] = [
     body: admin.AdminResolveReportBody,
     response: AdminActionResponse,
   },
->>>>>>> Naumaan/t4-4b-reviews
 ];

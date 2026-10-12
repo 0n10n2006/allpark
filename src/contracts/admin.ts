@@ -184,7 +184,6 @@ export const AdminResolveDisputeBody = z.strictObject({
 });
 export type AdminResolveDisputeBody = z.infer<typeof AdminResolveDisputeBody>;
 
-<<<<<<< HEAD
 // ── Payouts (FR-06 AC5/AC6; payoutMode MANUAL: an admin pays, then records the reference) ──
 
 export const AdminPayout = z.object({
@@ -258,7 +257,7 @@ export const AdminPayoutReconciliationResponse = z.object({
   ),
 });
 export type AdminPayoutReconciliationResponse = z.infer<typeof AdminPayoutReconciliationResponse>;
-=======
+
 export const AdminReport = z.object({
   id: Uuid,
   reporterId: Uuid,
@@ -291,4 +290,3 @@ export const AdminResolveReportBody = z.strictObject({
   reason: AdminReason,
 });
 export type AdminResolveReportBody = z.infer<typeof AdminResolveReportBody>;
->>>>>>> Naumaan/t4-4b-reviews

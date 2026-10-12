@@ -605,7 +605,6 @@ export const examples: Record<
     body: { decision: "REJECTED", reason },
     response: adminAction,
   },
-<<<<<<< HEAD
   "GET /api/admin/payouts": {
     query: { payoutStatus: "PENDING" },
     response: {
@@ -668,7 +667,6 @@ export const examples: Record<
       discrepancies: [],
     },
   },
-=======
   "GET /api/admin/reports": {
     query: { status: "OPEN" },
     response: { items: [adminReport], nextCursor: null },
@@ -678,5 +676,4 @@ export const examples: Record<
     body: { action: "ACTION", resolution: "Suspended listing for violation.", reason },
     response: adminAction,
   },
->>>>>>> Naumaan/t4-4b-reviews
 };
