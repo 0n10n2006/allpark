@@ -15,5 +15,8 @@ export default defineConfig({
     env: { DATABASE_URL: process.env.TEST_DATABASE_URL ?? "" },
     // DB integration tests share one test database; run files serially.
     fileParallelism: false,
+    // Mostly DB integration tests; 5s defaults flake while other worktrees build.
+    testTimeout: 20_000,
+    hookTimeout: 30_000,
   },
 });

@@ -51,10 +51,13 @@ export async function getCurrentUser(req?: Request): Promise<CurrentUser | null>
   if (!token) return null;
   const session = await db.session.findUnique({
     where: { sessionToken: token },
-    select: { expires: true, user: { select: userSelect } },
+    select: { expires: true, user: { select: { ...userSelect, suspendedAt: true } } },
   });
   if (!session || session.expires <= new Date()) return null;
-  return session.user;
+  // Suspended accounts (FR-13) are treated as signed out everywhere, even with a
+  // session created after suspension (e.g. a fresh magic link).
+  const { suspendedAt, ...user } = session.user;
+  return suspendedAt ? null : user;
 }
 
 export async function requireUser(req?: Request): Promise<CurrentUser> {

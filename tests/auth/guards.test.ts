@@ -51,3 +51,13 @@ describe("guards", () => {
     );
   });
 });
+
+test("a suspended user is treated as signed out, even with a live session", async () => {
+  const { user, cookie } = await seedSession(["RENTER"]);
+  await testDb.user.update({
+    where: { id: user.id },
+    data: { suspendedAt: new Date(), suspendedReason: "fraud review" },
+  });
+  expect(await getCurrentUser(req("/api/me", { cookie }))).toBeNull();
+  await expect(requireUser(req("/api/me", { cookie }))).rejects.toMatchObject({ status: 401 });
+});
