@@ -78,7 +78,7 @@ test("host sees booking on their listing and confirms arrival", async ({
 
   // Confirmed booking on host's listing
   const now = Date.now();
-  const bookingId = await insert(
+  await insert(
     `INSERT INTO "Booking" ("listingId", "renterId", "rentalType", "startAt", "endAt",
        "blockedUntil", status, "holdExpiresAt", "subtotalPaise", "commissionPaise",
        "hostEarningsPaise", "totalPaise", "updatedAt")
