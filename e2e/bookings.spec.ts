@@ -121,7 +121,8 @@ test.afterAll(async () => {
   );
   await db.query(`DELETE FROM "Booking" WHERE "listingId" = ANY($1::uuid[])`, [listingIds]);
   await db.query(`DELETE FROM "Listing" WHERE id = ANY($1::uuid[])`, [listingIds]);
-  // Sessions cascade with their user.
+  // The cancel test notifies both parties. Sessions cascade with their user.
+  await db.query(`DELETE FROM "Notification" WHERE "userId" = ANY($1::uuid[])`, [userIds]);
   await db.query(`DELETE FROM "User" WHERE id = ANY($1::uuid[])`, [userIds]);
   await db.end();
 });
