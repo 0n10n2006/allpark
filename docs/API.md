@@ -46,6 +46,7 @@ Auth `user` = signed-in session; `admin` = ADMIN role. Mutating admin requests r
 | POST | `/api/webhooks/razorpay` | public | body: `RazorpayWebhookBody` | `RazorpayWebhookResponse` | T4.1 |
 | POST | `/api/disputes` | user | body: `CreateDisputeBody` | `Dispute` | T4.4 |
 | POST | `/api/reviews` | user | body: `CreateReviewBody` | `Review` | T4.4 |
+| GET | `/api/listings/:id/reviews` | public | params: `IdParams`<br>query: `PaginationQuery` | `ListListingReviewsResponse` | T4.4b |
 | POST | `/api/reports` | user | body: `CreateReportBody` | `CreateReportResponse` | T4.4 |
 | GET | `/api/host/earnings` | user | query: `HostEarningsQuery` | `HostEarningsResponse` | T4.5 |
 | GET | `/api/host/payouts` | user | query: `PaginationQuery` | `ListHostPayoutsResponse` | T4.5 |
@@ -76,3 +77,5 @@ Auth `user` = signed-in session; `admin` = ADMIN role. Mutating admin requests r
 | POST | `/api/admin/payouts/:id/mark-paid` | admin · Idempotency-Key | params: `IdParams`<br>body: `AdminMarkPayoutPaidBody` | `AdminActionResponse` | T4.5 |
 | POST | `/api/admin/payouts/:id/mark-failed` | admin · Idempotency-Key | params: `IdParams`<br>body: `AdminMarkPayoutFailedBody` | `AdminActionResponse` | T4.5 |
 | GET | `/api/admin/payouts/reconciliation` | admin | — | `AdminPayoutReconciliationResponse` | T4.5 |
+| GET | `/api/admin/reports` | admin | query: `AdminListReportsQuery` | `AdminListReportsResponse` | T4.4b |
+| POST | `/api/admin/reports/:id/resolve` | admin | params: `IdParams`<br>body: `AdminResolveReportBody` | `AdminActionResponse` | T4.4b |
