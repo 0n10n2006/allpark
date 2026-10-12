@@ -33,9 +33,23 @@ export function ReviewForm({
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
   const [submittedReview, setSubmittedReview] = useState<Review | null>(null);
+  const [alreadyReviewed, setAlreadyReviewed] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!targetBookingId) return null;
+
+  if (alreadyReviewed) {
+    return (
+      <section
+        aria-labelledby="review-already-title"
+        className="mt-6 rounded-xl border bg-muted/30 p-6 text-center"
+      >
+        <h2 id="review-already-title" className="text-lg font-semibold text-foreground">
+          You&apos;ve already reviewed this stay
+        </h2>
+      </section>
+    );
+  }
 
   if (submittedReview) {
     return (
@@ -96,8 +110,18 @@ export function ReviewForm({
       onSubmitted?.();
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.message);
-        toast.error(err.message);
+        if (
+          err.status === 409 ||
+          err.code === "conflict" ||
+          err.message?.toLowerCase().includes("already")
+        ) {
+          setAlreadyReviewed(true);
+          setError("You've already reviewed this stay");
+          toast.error("You've already reviewed this stay");
+        } else {
+          setError(err.message);
+          toast.error(err.message);
+        }
       } else {
         setError("Failed to submit review. Please try again.");
         toast.error("Failed to submit review");

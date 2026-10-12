@@ -12,6 +12,7 @@ import {
 import type { DisputeCategory } from "@/generated/prisma/enums";
 import { api, ApiError, newIdempotencyKey } from "@/lib/api-client";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ReviewForm } from "@/components/reviews/review-form";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -147,6 +148,8 @@ export function BookingSession({ booking: b }: { booking: BookingDetail }) {
       {now !== null ? <Actions b={b} now={now} onDone={() => router.refresh()} /> : null}
 
       {b.monthlyAgreement ? <MonthlyCard b={b} /> : null}
+
+      {b.status === "COMPLETED" ? <ReviewForm booking={b} /> : null}
     </>
   );
 }

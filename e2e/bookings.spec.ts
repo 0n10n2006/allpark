@@ -107,6 +107,11 @@ test.beforeAll(async ({ browser }) => {
 
 test.afterAll(async () => {
   await db.query(
+    `DELETE FROM "Review" WHERE "bookingId" IN
+       (SELECT id FROM "Booking" WHERE "listingId" = ANY($1::uuid[]))`,
+    [listingIds],
+  );
+  await db.query(
     `DELETE FROM "SessionEvent" WHERE "bookingId" IN
        (SELECT id FROM "Booking" WHERE "listingId" = ANY($1::uuid[]))`,
     [listingIds],
@@ -147,6 +152,13 @@ test("tabs sort bookings into upcoming, active and past", async ({ page, context
   await expect(page.getByTestId("access-pending")).toBeVisible();
   await expect(page.getByText("Gate code 4321")).toHaveCount(0);
   await expect(page.getByTestId("countdown")).toHaveCount(0);
+
+  // Review form appears for a COMPLETED booking and submits
+  await expect(page.getByRole("heading", { name: /Leave a review/ })).toBeVisible();
+  await page.getByLabel("Comment (optional)").fill("Great spot, very convenient!");
+  await page.getByRole("button", { name: "Submit review" }).click();
+  await expect(page.getByText("Thank you for your review!")).toBeVisible();
+
   await page.goBack();
 
   await expect(page.getByRole("tab", { name: /Upcoming/ })).toBeVisible();
