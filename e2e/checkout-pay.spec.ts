@@ -120,3 +120,52 @@ test("pay: order → Razorpay Checkout → verified confirmation → confirmed p
   expect(rows).toEqual([{ status: "CONFIRMED", payment: "SUCCEEDED" }]);
   await expect(page.getByRole("link", { name: "View booking and access details" })).toBeVisible();
 });
+
+test("extend payment: order → Razorpay Checkout → verified confirmation → endAt updated", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  await ensureFakeRazorpayApi();
+  await page.route("https://checkout.razorpay.com/**", (route) =>
+    route.fulfill({ contentType: "application/javascript", body: FAKE_CHECKOUT_JS }),
+  );
+  const { userId } = await signIn(context, baseURL!);
+  const { rows: listings } = await db.query<{ id: string }>(
+    `SELECT id FROM "Listing" WHERE status = 'PUBLISHED' ORDER BY random() LIMIT 1`,
+  );
+  const hours = 24 * 400 + Math.floor(Math.random() * 24 * 3000);
+  const { rows } = await db.query<{ id: string }>(
+    `INSERT INTO "Booking" ("listingId", "renterId", "rentalType", "startAt", "endAt", "blockedUntil",
+       "holdExpiresAt", "subtotalPaise", "commissionPaise", "hostEarningsPaise", "totalPaise", status, "updatedAt")
+     VALUES ($1, $2, 'HOURLY', date_trunc('hour', now()) + make_interval(hours => $3),
+       date_trunc('hour', now()) + make_interval(hours => $3 + 1),
+       date_trunc('hour', now()) + make_interval(hours => $3 + 1),
+       null, 12000, 1200, 10800, 12000, 'CONFIRMED', now())
+     RETURNING id`,
+    [listings[0].id, userId, hours],
+  );
+  const bookingId = rows[0].id;
+
+  await page.goto(`/bookings/${bookingId}`);
+  const extendBtn = page.getByRole("button", { name: "Extend" });
+  await expect(extendBtn).toBeVisible(SLOW);
+  await extendBtn.click();
+
+  const dialog = page.getByRole("dialog", { name: "Extend your booking" });
+  await expect(dialog).toBeVisible();
+
+  const submitBtn = dialog.getByRole("button", { name: "Check price" });
+  await expect(submitBtn).toBeVisible();
+  await submitBtn.click();
+
+  await expect(page.getByText("Booking extended.")).toBeVisible(SLOW);
+
+  const { rows: payments } = await db.query<{ status: string; extensionQuoteId: string | null }>(
+    `SELECT status, "extensionQuoteId" FROM "Payment" WHERE "bookingId" = $1 ORDER BY "createdAt" DESC LIMIT 1`,
+    [bookingId],
+  );
+  expect(payments[0]?.status).toBe("SUCCEEDED");
+  expect(payments[0]?.extensionQuoteId).toBeTruthy();
+});
+
