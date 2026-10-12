@@ -138,9 +138,9 @@ async function ratingOf(listingId: string) {
   return { average: r._avg.rating, count: r._count };
 }
 
-type Rating = { average: number | null; count: number };
+export type Rating = { average: number | null; count: number };
 
-function toOwned(
+export function toOwned(
   l: ListingRow,
   policy: ActivePolicy,
   rating: Rating = { average: null, count: 0 },

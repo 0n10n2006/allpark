@@ -697,4 +697,14 @@ export const examples: Record<
     body: { action: "ACTION", resolution: "Suspended listing for violation.", reason },
     response: adminAction,
   },
+  "GET /api/admin/stats": {
+    response: {
+      openDisputesCount: 2,
+      openReportsCount: 1,
+      pendingHostVerificationsCount: 3,
+      pendingPayoutsCount: 0,
+      deadJobsCount: 0,
+      failedNotificationsCount: 0,
+    },
+  },
 };

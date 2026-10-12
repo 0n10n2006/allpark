@@ -612,4 +612,11 @@ export const endpoints: Endpoint[] = [
     body: admin.AdminResolveReportBody,
     response: AdminActionResponse,
   },
+  {
+    method: "GET",
+    path: "/api/admin/stats",
+    auth: "admin",
+    task: "T4.6",
+    response: admin.AdminDashboardStats,
+  },
 ];

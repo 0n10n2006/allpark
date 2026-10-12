@@ -35,6 +35,8 @@ export const AdminUser = z.object({
   roles: z.array(z.enum(UserRole)),
   hostVerificationStatus: z.enum(HostVerificationStatus),
   deletionRequestedAt: IsoDateTime.nullable(),
+  suspendedAt: IsoDateTime.nullable().optional(),
+  suspendedReason: z.string().nullable().optional(),
   createdAt: IsoDateTime,
 });
 export type AdminUser = z.infer<typeof AdminUser>;
@@ -329,3 +331,14 @@ export const AdminResolveReportBody = z.strictObject({
   reason: AdminReason,
 });
 export type AdminResolveReportBody = z.infer<typeof AdminResolveReportBody>;
+
+export const AdminDashboardStats = z.object({
+  openDisputesCount: z.number().int().min(0),
+  openReportsCount: z.number().int().min(0),
+  pendingHostVerificationsCount: z.number().int().min(0),
+  pendingPayoutsCount: z.number().int().min(0),
+  deadJobsCount: z.number().int().min(0),
+  failedNotificationsCount: z.number().int().min(0),
+});
+export type AdminDashboardStats = z.infer<typeof AdminDashboardStats>;
+
