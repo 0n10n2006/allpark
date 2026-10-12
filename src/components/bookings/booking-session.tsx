@@ -2,6 +2,7 @@
 
 import { useId, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
+import Script from "next/script";
 import { toast } from "sonner";
 import {
   type BookingDetail,
@@ -109,6 +110,7 @@ export function BookingSession({ booking: b }: { booking: BookingDetail }) {
 
   return (
     <>
+      <Script src="https://checkout.razorpay.com/v1/checkout.js" />
       <section
         aria-labelledby="session-time-title"
         className="bg-primary/5 border-primary/20 mt-6 rounded-xl border p-4 md:p-6"
@@ -281,6 +283,18 @@ function SimpleAction({
   );
 }
 
+async function ensureRazorpay(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  if (window.Razorpay) return true;
+  return new Promise((resolve) => {
+    const s = document.createElement("script");
+    s.src = "https://checkout.razorpay.com/v1/checkout.js";
+    s.onload = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.body.appendChild(s);
+  });
+}
+
 /** Dialog shell with a submit button that stays busy while the request runs. */
 function ActionDialog({
   trigger,
@@ -295,13 +309,21 @@ function ActionDialog({
   description: React.ReactNode;
   submitLabel: string;
   /** Resolves true when the dialog should close. */
-  onSubmit: () => Promise<boolean>;
+  onSubmit: (setBusyMessage: (msg: string | null) => void) => Promise<boolean>;
   children?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [busyMessage, setBusyMessage] = useState<string | null>(null);
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (busy) return;
+        setOpen(next);
+        if (!next) setBusyMessage(null);
+      }}
+    >
       <DialogTrigger render={<Button className={actionClass} variant="outline" />}>
         {trigger}
       </DialogTrigger>
@@ -312,9 +334,13 @@ function ActionDialog({
           onSubmit={async (e) => {
             e.preventDefault();
             setBusy(true);
-            const close = await onSubmit();
-            setBusy(false);
-            if (close) setOpen(false);
+            try {
+              const close = await onSubmit(setBusyMessage);
+              if (close) setOpen(false);
+            } finally {
+              setBusy(false);
+              setBusyMessage(null);
+            }
           }}
           noValidate
         >
@@ -323,14 +349,19 @@ function ActionDialog({
             <DialogDescription render={<div />}>{description}</DialogDescription>
           </DialogHeader>
           {children}
+          {busyMessage ? (
+            <p role="status" aria-live="polite" className="font-medium text-sm">
+              {busyMessage}
+            </p>
+          ) : null}
           <DialogFooter>
             <DialogClose
-              render={<Button type="button" variant="outline" className={actionClass} />}
+              render={<Button type="button" variant="outline" className={actionClass} disabled={busy} />}
             >
               Keep booking as is
             </DialogClose>
             <Button type="submit" className={actionClass} disabled={busy}>
-              {submitLabel}
+              {busyMessage ?? submitLabel}
             </Button>
           </DialogFooter>
         </form>
@@ -387,7 +418,7 @@ function ExtendDialog({ b, onDone }: { b: BookingDetail; onDone: () => void }) {
       title="Extend your booking"
       submitLabel="Check price"
       description="We'll check the space is free and show the extra cost before you pay."
-      onSubmit={async () => {
+      onSubmit={async (setBusyMessage) => {
         let newEnd: Date;
         try {
           newEnd = parseISTLocal(value);
@@ -407,9 +438,90 @@ function ExtendDialog({ b, onDone }: { b: BookingDetail; onDone: () => void }) {
             headers: { "idempotency-key": key.get() },
           });
           key.reset();
-          toast.success(res.requiresPayment ? "Pay to confirm your extension." : "Booking extended.");
-          onDone();
-          return true;
+
+          if (!res.requiresPayment || !res.payment) {
+            toast.success("Booking extended.");
+            onDone();
+            return true;
+          }
+
+          // Open Razorpay Checkout for the extension payment
+          await ensureRazorpay();
+          if (!window.Razorpay) {
+            setError("Payment checkout could not be loaded. Please try again.");
+            return false;
+          }
+
+          return await new Promise<boolean>((resolve) => {
+            const order = res.payment!;
+            const rzp = new window.Razorpay!({
+              key: order.keyId,
+              order_id: order.orderId,
+              amount: order.amount.paise,
+              currency: order.amount.currency,
+              name: "ParkShare",
+              description: "Extend booking",
+              prefill: order.prefill,
+              handler: async (r: {
+                razorpay_order_id: string;
+                razorpay_payment_id: string;
+                razorpay_signature: string;
+              }) => {
+                setBusyMessage("Confirming…");
+                try {
+                  const confirmed = await api<BookingDetail>(
+                    `/api/bookings/${b.id}/confirm-payment`,
+                    {
+                      method: "POST",
+                      body: {
+                        razorpayOrderId: r.razorpay_order_id,
+                        razorpayPaymentId: r.razorpay_payment_id,
+                        razorpaySignature: r.razorpay_signature,
+                      },
+                      headers: { "idempotency-key": newIdempotencyKey() },
+                    },
+                  );
+
+                  // Poll until endAt moves
+                  const targetEnd = newEnd.getTime();
+                  let currentEnd = Date.parse(confirmed.endAt);
+                  const until = Date.now() + 60_000;
+
+                  while (currentEnd < targetEnd && Date.now() < until) {
+                    await new Promise((resolveTimeout) => setTimeout(resolveTimeout, 2000));
+                    const latest = await api<BookingDetail>(`/api/bookings/${b.id}`).catch(
+                      () => null,
+                    );
+                    if (latest) {
+                      currentEnd = Date.parse(latest.endAt);
+                    }
+                  }
+
+                  toast.success("Booking extended.");
+                  onDone();
+                  resolve(true);
+                } catch (err) {
+                  handleBookingError(err);
+                  resolve(false);
+                }
+              },
+              modal: {
+                ondismiss: () => {
+                  toast.info("Payment cancelled.");
+                  resolve(false);
+                },
+              },
+            });
+
+            rzp.on("payment.failed", (r: { error?: { description?: string } }) => {
+              toast.error(
+                `The payment failed${r.error?.description ? `: ${r.error.description}` : ""}.`,
+              );
+              resolve(false);
+            });
+
+            rzp.open();
+          });
         } catch (e) {
           handleBookingError(e);
           return false;
