@@ -72,6 +72,7 @@ async function expectAccessibleAt375(page: Page) {
 let renterCookies: Cookie[];
 let confirmed: { id: string };
 let pending: { id: string };
+let cancellable: { id: string };
 
 test.beforeAll(async ({ browser }) => {
   await db.connect();
@@ -103,6 +104,14 @@ test.beforeAll(async ({ browser }) => {
     new Date(now + 24 * 60 * MIN),
     new Date(now + 26 * 60 * MIN),
   );
+  // Starts tomorrow, so the cancel dialog is offered; no payment, so no refund row.
+  cancellable = await seedBooking(
+    renter.id,
+    "Cancellable bay",
+    "CONFIRMED",
+    new Date(now + 24 * 60 * MIN),
+    new Date(now + 26 * 60 * MIN),
+  );
 });
 
 test.afterAll(async () => {
@@ -111,9 +120,14 @@ test.afterAll(async () => {
        (SELECT id FROM "Booking" WHERE "listingId" = ANY($1::uuid[]))`,
     [listingIds],
   );
+  await db.query(
+    `DELETE FROM "Dispute" WHERE "bookingId" IN (SELECT id FROM "Booking" WHERE "listingId" = ANY($1::uuid[]))`,
+    [listingIds],
+  );
   await db.query(`DELETE FROM "Booking" WHERE "listingId" = ANY($1::uuid[])`, [listingIds]);
   await db.query(`DELETE FROM "Listing" WHERE id = ANY($1::uuid[])`, [listingIds]);
-  // Sessions cascade with their user.
+  // The cancel test notifies both parties. Sessions cascade with their user.
+  await db.query(`DELETE FROM "Notification" WHERE "userId" = ANY($1::uuid[])`, [userIds]);
   await db.query(`DELETE FROM "User" WHERE id = ANY($1::uuid[])`, [userIds]);
   await db.end();
 });
@@ -197,6 +211,32 @@ test("pending booking hides access details and has no countdown", async ({ page,
     dialog.getByText(/Full refund if cancelled at least 2 hours before start/),
   ).toBeVisible();
   await expectAccessibleAt375(page);
+});
+
+test("renter cancels a confirmed booking from the dialog", async ({ page, context }) => {
+  await context.addCookies(renterCookies);
+  await page.goto(`/bookings/${cancellable.id}`);
+
+  await page.getByRole("button", { name: "Cancel booking" }).click();
+  const dialog = page.getByRole("dialog", { name: "Cancel this booking?" });
+  await dialog.getByRole("button", { name: "Cancel booking" }).click();
+  // First cancel compiles the route in dev mode; allow for it.
+  await expect(page.getByText("Booking cancelled.")).toBeVisible({ timeout: 30_000 });
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByText("Cancelled").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cancel booking" })).toHaveCount(0);
+});
+
+test("renter reports a problem on a confirmed booking", async ({ page, context }) => {
+  await context.addCookies(renterCookies);
+  await page.goto(`/bookings/${confirmed.id}`);
+
+  await page.getByRole("button", { name: "Report a problem" }).click();
+  const dialog = page.getByRole("dialog", { name: "Report a problem" });
+  await dialog.getByLabel("Details").fill("The gate was locked when I arrived.");
+  await dialog.getByRole("button", { name: "Send report" }).click();
+  await expect(page.getByText("Report sent. We'll be in touch.")).toBeVisible({ timeout: 30_000 });
+  await expect(dialog).toHaveCount(0);
 });
 
 test("another user gets the not-found state for my booking", async ({ page, context, baseURL }) => {

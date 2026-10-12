@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { DisputeCategory, DisputeStatus } from "../generated/prisma/enums";
-import { IsoDateTime, Uuid } from "./common";
+import { IsoDateTime, Uuid, page } from "./common";
 
 // FR-08, FR-10. Evidence URLs must point at our Cloudinary uploads (checked by the handler).
 
@@ -26,3 +26,7 @@ export const CreateDisputeBody = z.strictObject({
   evidenceUrls: z.array(z.url()).max(10).optional(),
 });
 export type CreateDisputeBody = z.infer<typeof CreateDisputeBody>;
+
+/** GET /api/disputes (PaginationQuery): disputes on the caller's bookings (as renter or host), newest first. */
+export const ListMyDisputesResponse = page(Dispute);
+export type ListMyDisputesResponse = z.infer<typeof ListMyDisputesResponse>;

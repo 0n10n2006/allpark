@@ -398,6 +398,7 @@ export const examples: Record<
     },
     response: { received: true },
   },
+  "GET /api/disputes": { query: {}, response: { items: [dispute], nextCursor: null } },
   "POST /api/disputes": {
     body: { bookingId: ID, category: "ACCESS_DENIED", description: "Gate was locked on arrival." },
     response: dispute,
@@ -594,6 +595,26 @@ export const examples: Record<
   "GET /api/admin/disputes": {
     query: {},
     response: { items: [{ ...dispute, booking: { ...booking, hostId: ID2 } }], nextCursor: null },
+  },
+  "GET /api/admin/disputes/:id": {
+    params,
+    response: {
+      ...dispute,
+      booking: { ...booking, hostId: ID2 },
+      payments: [],
+      notifications: [],
+      auditLog: [
+        {
+          id: ID2,
+          actorId: null,
+          action: "booking.transition",
+          targetType: "Booking",
+          targetId: ID2,
+          reason: null,
+          createdAt: T0,
+        },
+      ],
+    },
   },
   "POST /api/admin/disputes/:id/resolve": {
     params,

@@ -1,10 +1,12 @@
 import { z } from "zod";
 import {
   BookingStatus,
+  DisputeCategory,
   DisputeStatus,
   HostVerificationStatus,
   JobStatus,
   ListingStatus,
+  NotificationStatus,
   PaymentStatus,
   PayoutStatus,
   RefundStatus,
@@ -141,10 +143,43 @@ export type AdminDispute = z.infer<typeof AdminDispute>;
 /** GET /api/admin/disputes: the dispute queue. */
 export const AdminListDisputesQuery = PaginationQuery.extend({
   disputeStatus: z.enum(DisputeStatus).optional(),
+  category: z.enum(DisputeCategory).optional(),
+  bookingId: Uuid.optional(),
 });
 export type AdminListDisputesQuery = z.infer<typeof AdminListDisputesQuery>;
 export const AdminListDisputesResponse = page(AdminDispute);
 export type AdminListDisputesResponse = z.infer<typeof AdminListDisputesResponse>;
+
+/**
+ * GET /api/admin/disputes/:id: one dispute with the booking's payments (and refunds),
+ * notifications, and audit trail for the support timeline (FR-10, FR-13). Oldest first.
+ */
+export const AdminDisputeDetail = z.object({
+  ...AdminDispute.shape,
+  payments: z.array(AdminPayment),
+  notifications: z.array(
+    z.object({
+      id: Uuid,
+      userId: Uuid,
+      type: z.string(),
+      status: z.enum(NotificationStatus),
+      scheduledAt: IsoDateTime,
+      sentAt: IsoDateTime.nullable(),
+    }),
+  ),
+  auditLog: z.array(
+    z.object({
+      id: Uuid,
+      actorId: Uuid.nullable(),
+      action: z.string(),
+      targetType: z.string(),
+      targetId: z.string().nullable(),
+      reason: z.string().nullable(),
+      createdAt: IsoDateTime,
+    }),
+  ),
+});
+export type AdminDisputeDetail = z.infer<typeof AdminDisputeDetail>;
 
 // ── Decisions (all require `reason`) ──
 
@@ -181,6 +216,10 @@ export const AdminResolveDisputeBody = z.strictObject({
   outcome: z.enum(["UNDER_REVIEW", "RESOLVED", "REJECTED"]),
   resolution: z.string().trim().min(3).max(5000),
   reason: AdminReason,
+  /** Optional refund to the renter, capped at the refundable captured amount. */
+  refundPaise: z.number().int().positive().optional(),
+  /** Where a DISPUTED booking goes when the dispute closes; required then, ignored otherwise. */
+  bookingOutcome: z.enum(["COMPLETED", "CANCELLED"]).optional(),
 });
 export type AdminResolveDisputeBody = z.infer<typeof AdminResolveDisputeBody>;
 

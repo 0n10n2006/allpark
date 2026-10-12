@@ -1,9 +1,12 @@
 import { CancelBookingBody, IdParams } from "@/contracts";
+import { cancelBooking } from "@/server/cancellations/service";
+import { withIdempotency } from "@/server/http/idempotency";
 import { route } from "@/server/http/route";
-import { notImplemented } from "../../../_lib/not-implemented";
 
-// Stub (T2.0). Implemented by T2.1, T4.4.
 export const POST = route(
   { auth: "user", params: IdParams, body: CancelBookingBody },
-  notImplemented,
+  ({ req, user, params, body }) =>
+    withIdempotency(req, user.id, async () =>
+      Response.json(await cancelBooking(params.id, user, body.reason)),
+    ),
 );

@@ -44,6 +44,7 @@ Auth `user` = signed-in session; `admin` = ADMIN role. Mutating admin requests r
 | GET | `/api/monthly/:id` | user | params: `IdParams` | `MonthlyAgreementDetail` | T4.3 |
 | POST | `/api/payments/order` | user · Idempotency-Key | body: `CreatePaymentOrderBody` | `CreatePaymentOrderResponse` | T4.1 |
 | POST | `/api/webhooks/razorpay` | public | body: `RazorpayWebhookBody` | `RazorpayWebhookResponse` | T4.1 |
+| GET | `/api/disputes` | user | query: `PaginationQuery` | `ListMyDisputesResponse` | T4.4 |
 | POST | `/api/disputes` | user | body: `CreateDisputeBody` | `Dispute` | T4.4 |
 | POST | `/api/reviews` | user | body: `CreateReviewBody` | `Review` | T4.4 |
 | GET | `/api/listings/:id/reviews` | public | params: `IdParams`<br>query: `PaginationQuery` | `ListListingReviewsResponse` | T4.4b |
@@ -69,8 +70,9 @@ Auth `user` = signed-in session; `admin` = ADMIN role. Mutating admin requests r
 | GET | `/api/admin/bookings` | admin | query: `AdminListBookingsQuery` | `AdminListBookingsResponse` | T4.6 |
 | GET | `/api/admin/payments` | admin | query: `AdminListPaymentsQuery` | `AdminListPaymentsResponse` | T4.6 |
 | GET | `/api/admin/jobs` | admin | query: `AdminListJobsQuery` | `AdminListJobsResponse` | T4.6 |
-| GET | `/api/admin/disputes` | admin | query: `AdminListDisputesQuery` | `AdminListDisputesResponse` | T4.6 |
-| POST | `/api/admin/disputes/:id/resolve` | admin | params: `IdParams`<br>body: `AdminResolveDisputeBody` | `AdminActionResponse` | T4.6 |
+| GET | `/api/admin/disputes` | admin | query: `AdminListDisputesQuery` | `AdminListDisputesResponse` | T4.4 |
+| GET | `/api/admin/disputes/:id` | admin | params: `IdParams` | `AdminDisputeDetail` | T4.4 |
+| POST | `/api/admin/disputes/:id/resolve` | admin | params: `IdParams`<br>body: `AdminResolveDisputeBody` | `AdminActionResponse` | T4.4 |
 | POST | `/api/admin/reviews/:id/moderate` | admin | params: `IdParams`<br>body: `AdminModerateReviewBody` | `AdminActionResponse` | T4.6 |
 | GET | `/api/admin/payouts` | admin | query: `AdminListPayoutsQuery` | `AdminListPayoutsResponse` | T4.5 |
 | POST | `/api/admin/payouts` | admin · Idempotency-Key | body: `AdminCreatePayoutBody` | `AdminPayout` | T4.5 |
