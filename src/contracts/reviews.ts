@@ -19,6 +19,30 @@ export type Review = z.infer<typeof Review>;
 export const CreateReviewBody = z.strictObject({
   bookingId: Uuid,
   rating: z.number().int().min(1).max(5),
-  comment: z.string().trim().max(2000).optional(),
+  comment: z.string().trim().max(1000).optional(),
 });
 export type CreateReviewBody = z.infer<typeof CreateReviewBody>;
+
+export const ListingReviewItem = z.strictObject({
+  id: Uuid,
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().nullable(),
+  createdAt: IsoDateTime,
+  reviewerFirstName: z.string().nullable(),
+});
+export type ListingReviewItem = z.infer<typeof ListingReviewItem>;
+
+export const ListingRatingSummary = z.strictObject({
+  average: z.number().min(1).max(5).nullable(),
+  count: z.number().int().min(0),
+});
+export type ListingRatingSummary = z.infer<typeof ListingRatingSummary>;
+
+/** GET /api/listings/:id/reviews */
+export const ListListingReviewsResponse = z.strictObject({
+  items: z.array(ListingReviewItem),
+  nextCursor: z.string().nullable(),
+  rating: ListingRatingSummary,
+  summary: ListingRatingSummary,
+});
+export type ListListingReviewsResponse = z.infer<typeof ListListingReviewsResponse>;

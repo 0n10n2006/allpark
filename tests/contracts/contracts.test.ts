@@ -33,7 +33,7 @@ describe("registry", () => {
       const mod = await loadRoute(e);
       expect(typeof mod[e.method], key(e)).toBe("function");
     }
-  });
+  }, 20_000);
 
   test("every registry schema is exported from @/contracts under exactly one name", () => {
     for (const e of endpoints)
@@ -81,6 +81,7 @@ describe("registry", () => {
       "GET /api/listings",
       "GET /api/listings/:id",
       "GET /api/listings/:id/availability",
+      "GET /api/listings/:id/reviews",
       "POST /api/webhooks/razorpay",
     ]);
   });

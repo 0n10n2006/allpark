@@ -1,9 +1,12 @@
 import { AdminModerateReviewBody, IdParams } from "@/contracts";
 import { route } from "@/server/http/route";
-import { notImplemented } from "../../../../_lib/not-implemented";
+import { moderateReview } from "@/server/reviews/service";
 
-// Stub (T2.0). Implemented by T4.6.
+// POST /api/admin/reviews/:id/moderate
 export const POST = route(
   { auth: "admin", params: IdParams, body: AdminModerateReviewBody },
-  notImplemented,
+  async ({ user, params, body }) => {
+    const res = await moderateReview(user, params.id, body.decision, body.reason);
+    return Response.json(res);
+  },
 );
