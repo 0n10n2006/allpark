@@ -102,11 +102,21 @@ export function ReportDialog({ listingId, listingTitle, trigger }: ReportDialogP
         if (!next) resetForm();
       }}
     >
-      <DialogTrigger render={<div>{trigger ?? (
-        <Button variant="outline" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
-          <Flag className="size-4" /> Report this listing
-        </Button>
-      )}</div>} />
+      <DialogTrigger
+        render={
+          trigger ? (
+            <div>{trigger}</div>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 text-muted-foreground hover:text-foreground"
+            >
+              <Flag className="size-4" /> Report this listing
+            </Button>
+          )
+        }
+      />
 
       <DialogContent showCloseButton={false} className="sm:max-w-lg">
         <form onSubmit={handleSubmit} className="grid gap-4" noValidate>

@@ -70,10 +70,32 @@ test("signed out: approximate location only, sign in to book", async ({ page }) 
     "href",
     `/sign-in?callbackUrl=${encodeURIComponent(`/listings/${listing.id}`)}`,
   );
+  const reportCta = page.getByRole("link", { name: "Sign in to report" });
+  await expect(reportCta).toHaveAttribute(
+    "href",
+    `/sign-in?callbackUrl=${encodeURIComponent(`/listings/${listing.id}`)}`,
+  );
   const html = await page.content();
   expect(html).not.toContain(listing.address);
   expect(html).not.toContain(listing.accessInstructions);
   await expectAccessible(page);
+});
+
+test("signed in: report dialog visible", async ({ context, baseURL, page }) => {
+  await signInRenter(context, baseURL!);
+  const listing = await seededListing();
+  await page.goto(`/listings/${listing.id}`);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible(SLOW);
+  const reportBtn = page.getByRole("button", { name: "Report this listing" });
+  await expect(reportBtn).toBeVisible();
+  await reportBtn.click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Report this listing" })).toBeVisible();
+  await expect(dialog.getByLabel("What is the problem?")).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Cancel" })).toBeVisible();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toHaveCount(0);
 });
 
 test("suspended listing is a 404 state", async ({ page }) => {

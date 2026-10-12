@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { BadgeCheck, MapPin, ShieldAlert } from "lucide-react";
 import type { GetAvailabilityResponse, PublicListing, Quote, Vehicle } from "@/contracts";
+import { ReportDialog } from "@/components/reports/report-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatINR } from "@/lib/money";
 import { formatIST, startOfDayIST } from "@/lib/time";
@@ -43,9 +45,17 @@ type Props = {
   vehicles: Vehicle[] | null;
   now: Date;
   mapboxToken: string | null;
+  isSignedIn?: boolean;
 };
 
-export function ListingDetail({ listing, availability, vehicles, now, mapboxToken }: Props) {
+export function ListingDetail({
+  listing,
+  availability,
+  vehicles,
+  now,
+  mapboxToken,
+  isSignedIn,
+}: Props) {
   const offered: OfferedRental[] = RENTALS.flatMap((r) => {
     const price = listing.prices[r.key];
     return price ? [{ type: r.type, label: r.label, unit: r.unit, paise: price.paise }] : [];
@@ -146,6 +156,19 @@ export function ListingDetail({ listing, availability, vehicles, now, mapboxToke
         </Section>
 
         <AvailabilityPreview availability={availability} now={now} />
+
+        <div className="border-t pt-4">
+          {isSignedIn ? (
+            <ReportDialog listingId={listing.id} listingTitle={listing.title} />
+          ) : (
+            <Link
+              href={`/sign-in?callbackUrl=${encodeURIComponent(`/listings/${listing.id}`)}`}
+              className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-sm underline"
+            >
+              Sign in to report
+            </Link>
+          )}
+        </div>
       </div>
 
       <aside aria-labelledby="book-title" className="lg:sticky lg:top-24 lg:self-start">
