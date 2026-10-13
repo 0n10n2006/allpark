@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import { expect, test } from "@playwright/test";
 import pg from "pg";
@@ -120,3 +121,75 @@ test("pay: order → Razorpay Checkout → verified confirmation → confirmed p
   expect(rows).toEqual([{ status: "CONFIRMED", payment: "SUCCEEDED" }]);
   await expect(page.getByRole("link", { name: "View booking and access details" })).toBeVisible();
 });
+
+test("extend payment: order → Razorpay Checkout → verified confirmation → endAt updated", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  await ensureFakeRazorpayApi();
+  await page.route("https://checkout.razorpay.com/**", (route) =>
+    route.fulfill({ contentType: "application/javascript", body: FAKE_CHECKOUT_JS }),
+  );
+  const { userId } = await signIn(context, baseURL!);
+  const hostId = (
+    await db.query<{ id: string }>(
+      `INSERT INTO "User" (email, roles, name, "updatedAt")
+       VALUES ($1, '{HOST}', 'Extend Host', now()) RETURNING id`,
+      [`extend-host-${randomUUID()}@e2e.local`],
+    )
+  ).rows[0].id;
+  const listingId = (
+    await db.query<{ id: string }>(
+      `INSERT INTO "Listing" ("hostId", title, description, address, locality, lat, lng,
+         "approxLat", "approxLng", "spaceType", "vehicleTypes", "hourlyPaise",
+         "accessInstructions", status, "updatedAt")
+       VALUES ($1, 'Extend Spot', 'Covered', '12 Extend Way', 'Shivajinagar', 18.53, 73.84, 18.531, 73.84, 'STILT',
+         '{SEDAN}', 5000, 'Gate code 4321', 'PUBLISHED', now()) RETURNING id`,
+      [hostId],
+    )
+  ).rows[0].id;
+
+  for (let weekday = 0; weekday < 7; weekday++) {
+    await db.query(
+      `INSERT INTO "AvailabilityRule" ("listingId", weekday, "startMinute", "endMinute", "updatedAt")
+       VALUES ($1, $2, 0, 1440, now())`,
+      [listingId, weekday],
+    );
+  }
+
+  const hours = 24 * 400 + Math.floor(Math.random() * 24 * 3000);
+  const { rows } = await db.query<{ id: string }>(
+    `INSERT INTO "Booking" ("listingId", "renterId", "rentalType", "startAt", "endAt", "blockedUntil",
+       "holdExpiresAt", "subtotalPaise", "commissionPaise", "hostEarningsPaise", "totalPaise", status, "updatedAt")
+     VALUES ($1, $2, 'HOURLY', date_trunc('hour', now()) + make_interval(hours => $3),
+       date_trunc('hour', now()) + make_interval(hours => $3 + 1),
+       date_trunc('hour', now()) + make_interval(hours => $3 + 1),
+       null, 12000, 1200, 10800, 12000, 'CONFIRMED', now())
+     RETURNING id`,
+    [listingId, userId, hours],
+  );
+  const bookingId = rows[0].id;
+
+  await page.goto(`/bookings/${bookingId}`);
+  const extendBtn = page.getByRole("button", { name: "Extend" });
+  await expect(extendBtn).toBeVisible(SLOW);
+  await extendBtn.click();
+
+  const dialog = page.getByRole("dialog", { name: "Extend your booking" });
+  await expect(dialog).toBeVisible();
+
+  const submitBtn = dialog.getByRole("button", { name: "Check price" });
+  await expect(submitBtn).toBeVisible();
+  await submitBtn.click();
+
+  await expect(page.getByText("Booking extended.")).toBeVisible(SLOW);
+
+  const { rows: payments } = await db.query<{ status: string; extensionQuoteId: string | null }>(
+    `SELECT status, "extensionQuoteId" FROM "Payment" WHERE "bookingId" = $1 ORDER BY "createdAt" DESC LIMIT 1`,
+    [bookingId],
+  );
+  expect(payments[0]?.status).toBe("SUCCEEDED");
+  expect(payments[0]?.extensionQuoteId).toBeTruthy();
+});
+

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
+import { io } from "next/cache";
 import { Uuid } from "@/contracts";
 import { ListingDetail, ListingSkeleton } from "@/components/listing/listing-detail";
 import { getCurrentUser } from "@/server/auth/guards";
@@ -23,6 +24,7 @@ async function ListingContent({ params }: PageProps<"/listings/[id]">) {
   const { id } = await params;
   if (!Uuid.safeParse(id).success) notFound();
   const user = await getCurrentUser();
+  await io();
   const now = new Date();
   // Public view for everyone (viewer null): drafts and suspended listings 404 even for the owner.
   const [listing, availability, vehicles] = await Promise.all([
@@ -44,6 +46,7 @@ async function ListingContent({ params }: PageProps<"/listings/[id]">) {
       vehicles={vehicles}
       now={now}
       mapboxToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN || null}
+      isSignedIn={Boolean(user)}
     />
   );
 }
