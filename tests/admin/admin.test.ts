@@ -5,13 +5,11 @@ import { noParams, req, seedSession } from "../http/helpers";
 vi.mock("@/server/db", async () => ({ db: (await import("../setup/db")).testDb }));
 
 const { GET: getUsers } = await import("@/app/api/admin/users/route");
-const { GET: getUserDetail } = await import("@/app/api/admin/users/[id]/route");
 const { POST: verifyHost } = await import("@/app/api/admin/users/[id]/verify-host/route");
 const { POST: suspendUser } = await import("@/app/api/admin/users/[id]/suspend/route");
 const { GET: getListings } = await import("@/app/api/admin/listings/route");
 const { POST: suspendListing } = await import("@/app/api/admin/listings/[id]/suspend/route");
 const { GET: getBookings } = await import("@/app/api/admin/bookings/route");
-const { GET: getBookingDetail } = await import("@/app/api/admin/bookings/[id]/route");
 const { GET: getPayments } = await import("@/app/api/admin/payments/route");
 const { GET: getJobs } = await import("@/app/api/admin/jobs/route");
 const { GET: getReviews } = await import("@/app/api/admin/reviews/route");

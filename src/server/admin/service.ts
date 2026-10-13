@@ -21,7 +21,7 @@ import {
   Uuid,
 } from "@/contracts";
 import { getActivePolicy } from "@/config/policy";
-import type { Prisma } from "@/generated/prisma/client";
+import type { NotificationStatus, Prisma } from "@/generated/prisma/client";
 import type { CurrentUser } from "@/server/auth/guards";
 import { getBooking } from "@/server/bookings/service";
 import { db } from "@/server/db";
@@ -625,7 +625,7 @@ export async function adminListNotifications(q: {
   validateCursor(q.cursor);
   const limit = Math.min(q.limit ?? 25, 100);
   const where: Prisma.NotificationWhereInput = {
-    ...(q.status ? { status: q.status as any } : {}),
+    ...(q.status ? { status: q.status as NotificationStatus } : {}),
   };
 
   const rows = await db.notification.findMany({
