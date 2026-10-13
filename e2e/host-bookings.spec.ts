@@ -60,7 +60,7 @@ test("host sees booking on their listing and confirms arrival", async ({
   // Create renter
   const renterId = await insert(
     `INSERT INTO "User" (email, roles, name, "updatedAt")
-     VALUES ($1, '{USER}', 'Rohan Renter', now()) RETURNING id`,
+     VALUES ($1, '{RENTER}', 'Rohan Renter', now()) RETURNING id`,
     [`${randomUUID()}@renter.local`],
   );
   userIds.push(renterId);
