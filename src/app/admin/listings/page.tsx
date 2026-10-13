@@ -6,12 +6,10 @@ import {
   Search,
   MapPin,
   Eye,
-  ShieldAlert,
   RotateCcw,
   Image as ImageIcon,
   CheckCircle,
   AlertCircle,
-  ExternalLink,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -96,6 +94,7 @@ function ListingsContent() {
   );
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on filter change
     fetchListings();
   }, [fetchListings]);
 
@@ -189,8 +188,10 @@ function ListingsContent() {
             <Select
               value={listingStatus}
               onValueChange={(val) => {
-                setListingStatus(val);
-                setCursorHistory([]);
+                if (val) {
+                  setListingStatus(val);
+                  setCursorHistory([]);
+                }
               }}
             >
               <SelectTrigger aria-label="Filter by listing status">
@@ -274,7 +275,7 @@ function ListingsContent() {
                         </span>
                       </TableCell>
                       <TableCell className="font-semibold">
-                        {l.pricing.hourly ? formatINR(l.pricing.hourly.paise) : "—"}
+                        {l.prices.hourly ? formatINR(l.prices.hourly.paise) : "—"}
                       </TableCell>
                       <TableCell>
                         <StatusBadge status={l.status} />
@@ -383,9 +384,9 @@ function ListingsContent() {
                   </span>
                 </div>
                 <div className="space-y-1 text-xs">
-                  <div><strong>Address:</strong> {selectedListing.location.address}</div>
-                  <div><strong>Locality:</strong> {selectedListing.location.locality}, {selectedListing.location.city}</div>
-                  <div><strong>Coordinates:</strong> {selectedListing.location.lat}, {selectedListing.location.lng}</div>
+                  <div><strong>Address:</strong> {selectedListing.address}</div>
+                  <div><strong>Locality:</strong> {selectedListing.locality}, {selectedListing.city}</div>
+                  <div><strong>Coordinates:</strong> {selectedListing.lat}, {selectedListing.lng}</div>
                   {selectedListing.accessInstructions && (
                     <div className="mt-2 pt-2 border-t border-primary/10">
                       <strong>Access Instructions:</strong> {selectedListing.accessInstructions}
@@ -406,9 +407,9 @@ function ListingsContent() {
               <div className="rounded-lg border p-3 space-y-2 text-xs">
                 <div className="font-semibold">Pricing Rates:</div>
                 <div className="grid grid-cols-3 gap-2">
-                  <div>Hourly: <span className="font-bold">{selectedListing.pricing.hourly ? formatINR(selectedListing.pricing.hourly.paise) : "—"}</span></div>
-                  <div>Daily: <span className="font-bold">{selectedListing.pricing.daily ? formatINR(selectedListing.pricing.daily.paise) : "—"}</span></div>
-                  <div>Monthly: <span className="font-bold">{selectedListing.pricing.monthly ? formatINR(selectedListing.pricing.monthly.paise) : "—"}</span></div>
+                  <div>Hourly: <span className="font-bold">{selectedListing.prices.hourly ? formatINR(selectedListing.prices.hourly.paise) : "—"}</span></div>
+                  <div>Daily: <span className="font-bold">{selectedListing.prices.daily ? formatINR(selectedListing.prices.daily.paise) : "—"}</span></div>
+                  <div>Monthly: <span className="font-bold">{selectedListing.prices.monthly ? formatINR(selectedListing.prices.monthly.paise) : "—"}</span></div>
                 </div>
               </div>
 

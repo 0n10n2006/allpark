@@ -10,7 +10,6 @@ import {
   Eye,
   Car,
   CalendarDays,
-  ShieldAlert,
   ShieldCheck,
   RotateCcw,
 } from "lucide-react";
@@ -38,12 +37,11 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { ActionDialog } from "@/components/admin/action-dialog";
 import { EmptyState } from "@/components/common/empty-state";
 import { LoadingState } from "@/components/common/loading-state";
-import { api, ApiError } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
 import { formatINR } from "@/lib/money";
 import { formatIST } from "@/lib/time";
 import type {
@@ -126,6 +124,7 @@ function UsersContent() {
   );
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on filter change
     fetchUsers();
   }, [fetchUsers]);
 
@@ -250,7 +249,15 @@ function UsersContent() {
 
         <div className="flex flex-wrap items-center gap-2">
           <div className="w-36">
-            <Select value={role} onValueChange={(val) => { setRole(val); setCursorHistory([]); }}>
+            <Select
+              value={role}
+              onValueChange={(val) => {
+                if (val) {
+                  setRole(val);
+                  setCursorHistory([]);
+                }
+              }}
+            >
               <SelectTrigger aria-label="Filter by role">
                 <SelectValue placeholder="All Roles" />
               </SelectTrigger>
@@ -266,7 +273,12 @@ function UsersContent() {
           <div className="w-48">
             <Select
               value={verificationStatus}
-              onValueChange={(val) => { setVerificationStatus(val); setCursorHistory([]); }}
+              onValueChange={(val) => {
+                if (val) {
+                  setVerificationStatus(val);
+                  setCursorHistory([]);
+                }
+              }}
             >
               <SelectTrigger aria-label="Filter by verification">
                 <SelectValue placeholder="Verification Status" />

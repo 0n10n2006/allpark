@@ -3,12 +3,10 @@
 import { Suspense, useEffect, useState, useCallback } from "react";
 import {
   Search,
-  CreditCard,
   Eye,
   CheckCircle2,
   Clock,
   RotateCcw,
-  IndianRupee,
   Receipt,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -89,6 +87,7 @@ function PaymentsContent() {
   );
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on filter change
     fetchPayments();
   }, [fetchPayments]);
 
@@ -147,8 +146,10 @@ function PaymentsContent() {
             <Select
               value={paymentStatus}
               onValueChange={(val) => {
-                setPaymentStatus(val);
-                setCursorHistory([]);
+                if (val) {
+                  setPaymentStatus(val);
+                  setCursorHistory([]);
+                }
               }}
             >
               <SelectTrigger aria-label="Filter by payment status">

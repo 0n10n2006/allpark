@@ -3,12 +3,8 @@
 import { Suspense, useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
 import {
-  Flag,
   RotateCcw,
   ExternalLink,
-  ShieldAlert,
-  CheckCircle,
-  XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -87,6 +83,7 @@ function ReportsContent() {
   );
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on filter change
     fetchReports();
   }, [fetchReports]);
 
@@ -158,8 +155,10 @@ function ReportsContent() {
             <Select
               value={reportStatus}
               onValueChange={(val) => {
-                setReportStatus(val);
-                setCursorHistory([]);
+                if (val) {
+                  setReportStatus(val);
+                  setCursorHistory([]);
+                }
               }}
             >
               <SelectTrigger aria-label="Filter by report status">
@@ -178,8 +177,10 @@ function ReportsContent() {
             <Select
               value={targetType}
               onValueChange={(val) => {
-                setTargetType(val);
-                setCursorHistory([]);
+                if (val) {
+                  setTargetType(val);
+                  setCursorHistory([]);
+                }
               }}
             >
               <SelectTrigger aria-label="Filter by target type">
@@ -358,7 +359,9 @@ function ReportsContent() {
             <Label htmlFor="report-action">Action Decision</Label>
             <Select
               value={resolveAction}
-              onValueChange={(val: "DISMISS" | "ACTION") => setResolveAction(val)}
+              onValueChange={(val) => {
+                if (val === "DISMISS" || val === "ACTION") setResolveAction(val);
+              }}
             >
               <SelectTrigger id="report-action">
                 <SelectValue placeholder="Select decision" />

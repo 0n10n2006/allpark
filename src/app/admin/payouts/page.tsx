@@ -3,16 +3,11 @@
 import { Suspense, useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
 import {
-  IndianRupee,
   CheckCircle,
-  XCircle,
   AlertTriangle,
   RotateCcw,
   PlusCircle,
   RefreshCw,
-  Search,
-  ShieldAlert,
-  ArrowRight,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -32,13 +27,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { ActionDialog } from "@/components/admin/action-dialog";
@@ -131,6 +119,7 @@ function PayoutsContent() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on filter change
     fetchPayouts();
     fetchReconciliation();
   }, [fetchPayouts, fetchReconciliation]);
@@ -314,8 +303,10 @@ function PayoutsContent() {
                 <Select
                   value={payoutStatus}
                   onValueChange={(val) => {
-                    setPayoutStatus(val);
-                    setCursorHistory([]);
+                    if (val) {
+                      setPayoutStatus(val);
+                      setCursorHistory([]);
+                    }
                   }}
                 >
                   <SelectTrigger aria-label="Filter by payout status">
@@ -669,11 +660,11 @@ function PayoutsContent() {
                         />
                         <div>
                           <div className="font-semibold">{b.listing.title}</div>
-                          <div className="text-[10px] text-muted-foreground font-mono">{b.code || b.id.slice(0, 8)}</div>
+                          <div className="text-[10px] text-muted-foreground font-mono">{b.id.slice(0, 8)}</div>
                         </div>
                       </div>
                       <span className="font-bold text-foreground">
-                        {formatINR(b.pricing.hostEarnings ? b.pricing.hostEarnings.paise : b.pricing.total.paise)}
+                        {formatINR(b.hostEarnings ? b.hostEarnings.paise : b.total.paise)}
                       </span>
                     </label>
                   );

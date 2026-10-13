@@ -14,7 +14,7 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
 
   if (["VERIFIED", "PUBLISHED", "COMPLETED", "PAID", "RESOLVED", "APPROVED", "SUCCESS"].includes(s)) {
     variant = "default";
-    customClasses = "bg-emerald-600 hover:bg-emerald-700 text-white";
+    customClasses = "bg-emerald-800 hover:bg-emerald-900 text-white";
   } else if (["PENDING", "UNDER_REVIEW", "DRAFT", "HOLD", "EXTENDED", "ORDER_CREATED"].includes(s)) {
     variant = "secondary";
     customClasses = "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950 dark:text-amber-200";

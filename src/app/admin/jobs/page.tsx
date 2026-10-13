@@ -3,12 +3,7 @@
 import { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import {
-  Cpu,
-  Bell,
-  Flame,
-  AlertTriangle,
   RotateCcw,
-  Clock,
   Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -130,10 +125,12 @@ function JobsContent() {
   );
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on filter change
     fetchJobs();
   }, [fetchJobs]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on filter change
     fetchNotifications();
   }, [fetchNotifications]);
 
@@ -171,8 +168,10 @@ function JobsContent() {
                 <Select
                   value={jobStatus}
                   onValueChange={(val) => {
-                    setJobStatus(val);
-                    setJobCursorHistory([]);
+                    if (val) {
+                      setJobStatus(val);
+                      setJobCursorHistory([]);
+                    }
                   }}
                 >
                   <SelectTrigger aria-label="Filter by job status">
@@ -318,8 +317,10 @@ function JobsContent() {
                 <Select
                   value={notifStatus}
                   onValueChange={(val) => {
-                    setNotifStatus(val);
-                    setNotifCursorHistory([]);
+                    if (val) {
+                      setNotifStatus(val);
+                      setNotifCursorHistory([]);
+                    }
                   }}
                 >
                   <SelectTrigger aria-label="Filter by notification status">

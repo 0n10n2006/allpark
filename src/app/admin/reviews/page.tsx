@@ -3,14 +3,12 @@
 import { Suspense, useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
 import {
-  MessageSquare,
   Star,
   CheckCircle,
   XCircle,
   RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -82,6 +80,7 @@ function ReviewsContent() {
   );
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on filter change
     fetchReviews();
   }, [fetchReviews]);
 
@@ -145,8 +144,10 @@ function ReviewsContent() {
             <Select
               value={moderationStatus}
               onValueChange={(val) => {
-                setModerationStatus(val);
-                setCursorHistory([]);
+                if (val) {
+                  setModerationStatus(val);
+                  setCursorHistory([]);
+                }
               }}
             >
               <SelectTrigger aria-label="Filter by moderation status">
@@ -327,7 +328,7 @@ function ReviewsContent() {
         {moderateTarget?.comment && (
           <div className="rounded-lg border bg-muted/30 p-3 text-xs space-y-1">
             <span className="font-semibold text-muted-foreground">Review Content:</span>
-            <p className="italic">"{moderateTarget.comment}"</p>
+            <p className="italic">&ldquo;{moderateTarget.comment}&rdquo;</p>
           </div>
         )}
       </ActionDialog>

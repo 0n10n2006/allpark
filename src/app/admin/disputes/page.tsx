@@ -3,16 +3,8 @@
 import { Suspense, useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
 import {
-  AlertTriangle,
   Eye,
-  CheckCircle,
-  XCircle,
-  Clock,
   RotateCcw,
-  IndianRupee,
-  FileText,
-  Shield,
-  Calendar,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -109,6 +101,7 @@ function DisputesContent() {
   );
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on filter change
     fetchDisputes();
   }, [fetchDisputes]);
 
@@ -145,7 +138,7 @@ function DisputesContent() {
     let totalRefunded = 0;
 
     for (const p of payments) {
-      if (p.status === "CAPTURED" || p.status === "PARTIALLY_REFUNDED") {
+      if (p.status === "SUCCEEDED") {
         totalCaptured += p.amount.paise;
       }
       for (const r of p.refunds) {
@@ -243,8 +236,10 @@ function DisputesContent() {
             <Select
               value={disputeStatus}
               onValueChange={(val) => {
-                setDisputeStatus(val);
-                setCursorHistory([]);
+                if (val) {
+                  setDisputeStatus(val);
+                  setCursorHistory([]);
+                }
               }}
             >
               <SelectTrigger aria-label="Filter by dispute status">
@@ -264,8 +259,10 @@ function DisputesContent() {
             <Select
               value={category}
               onValueChange={(val) => {
-                setCategory(val);
-                setCursorHistory([]);
+                if (val) {
+                  setCategory(val);
+                  setCursorHistory([]);
+                }
               }}
             >
               <SelectTrigger aria-label="Filter by category">
@@ -338,7 +335,7 @@ function DisputesContent() {
                     <TableCell>
                       <div className="font-semibold text-xs">{d.booking.listing.title}</div>
                       <div className="text-muted-foreground font-mono text-[10px]">
-                        Booking: {d.booking.code || d.booking.id.slice(0, 8)}
+                        Booking: {d.booking.id.slice(0, 8)}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -348,7 +345,7 @@ function DisputesContent() {
                       <StatusBadge status={d.status} />
                     </TableCell>
                     <TableCell className="font-semibold text-xs">
-                      {formatINR(d.booking.pricing.total.paise)}
+                      {formatINR(d.booking.total.paise)}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
                       {formatIST(new Date(d.createdAt), "dd MMM yyyy, HH:mm")}
@@ -427,14 +424,14 @@ function DisputesContent() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-semibold text-sm">Dispute: {detail.category.replace(/_/g, " ")}</h3>
-                    <p className="text-muted-foreground">{detail.reason}</p>
+                    <p className="text-muted-foreground">{detail.description}</p>
                   </div>
                   <StatusBadge status={detail.status} />
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-muted-foreground pt-1 border-t">
                   <div>Dispute ID: <span className="font-mono text-foreground">{detail.id}</span></div>
-                  <div>Booking: <span className="font-mono text-foreground">{detail.booking.code || detail.booking.id}</span></div>
-                  <div>Initiated By: <span className="font-mono text-foreground">{detail.initiatorId}</span></div>
+                  <div>Booking: <span className="font-mono text-foreground">{detail.booking.id}</span></div>
+                  <div>Raised By: <span className="font-mono text-foreground">{detail.raisedById}</span></div>
                   <div>Filed At: <span className="text-foreground">{formatIST(new Date(detail.createdAt), "dd MMM yyyy, HH:mm")}</span></div>
                 </div>
                 {detail.resolution && (
@@ -564,13 +561,17 @@ function DisputesContent() {
             <Label htmlFor="dispute-outcome">Dispute Outcome</Label>
             <Select
               value={resolveOutcome}
-              onValueChange={(val: "RESOLVED" | "REJECTED" | "UNDER_REVIEW") => setResolveOutcome(val)}
+              onValueChange={(val) => {
+                if (val === "RESOLVED" || val === "REJECTED" || val === "UNDER_REVIEW") {
+                  setResolveOutcome(val);
+                }
+              }}
             >
               <SelectTrigger id="dispute-outcome">
                 <SelectValue placeholder="Select outcome" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="RESOLVED">Resolved in Renter's Favor (RESOLVED)</SelectItem>
+                <SelectItem value="RESOLVED">Resolved in Renter&apos;s Favor (RESOLVED)</SelectItem>
                 <SelectItem value="REJECTED">Dismiss Dispute (REJECTED)</SelectItem>
                 <SelectItem value="UNDER_REVIEW">Keep Under Review (UNDER_REVIEW)</SelectItem>
               </SelectContent>
@@ -615,7 +616,11 @@ function DisputesContent() {
               <Label htmlFor="dispute-booking-outcome">Target Booking Outcome</Label>
               <Select
                 value={bookingOutcome}
-                onValueChange={(val: "COMPLETED" | "CANCELLED") => setBookingOutcome(val)}
+                onValueChange={(val) => {
+                  if (val === "COMPLETED" || val === "CANCELLED") {
+                    setBookingOutcome(val);
+                  }
+                }}
               >
                 <SelectTrigger id="dispute-booking-outcome">
                   <SelectValue placeholder="Target booking status" />

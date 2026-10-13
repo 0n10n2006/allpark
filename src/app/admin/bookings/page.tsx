@@ -4,15 +4,8 @@ import { Suspense, useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
 import {
   Search,
-  CalendarDays,
-  CreditCard,
   Eye,
-  AlertTriangle,
-  Bell,
-  Clock,
-  ArrowRight,
   RotateCcw,
-  BookOpen,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -134,6 +127,7 @@ function BookingsContent() {
   );
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on filter change
     fetchBookings();
   }, [fetchBookings]);
 
@@ -205,8 +199,10 @@ function BookingsContent() {
             <Select
               value={bookingStatus}
               onValueChange={(val) => {
-                setBookingStatus(val);
-                setCursorHistory([]);
+                if (val) {
+                  setBookingStatus(val);
+                  setCursorHistory([]);
+                }
               }}
             >
               <SelectTrigger aria-label="Filter by booking status">
@@ -278,12 +274,12 @@ function BookingsContent() {
                 {bookings.map((b) => (
                   <TableRow key={b.id}>
                     <TableCell>
-                      <div className="font-mono font-bold text-xs">{b.code || b.id.slice(0, 8)}</div>
+                      <div className="font-mono font-bold text-xs">{b.id.slice(0, 8)}</div>
                       <div className="text-muted-foreground font-mono text-[10px]">{b.id}</div>
                     </TableCell>
                     <TableCell>
                       <div className="font-medium">{b.listing.title}</div>
-                      <div className="text-muted-foreground text-xs">{b.listing.locality}, {b.listing.city}</div>
+                      <div className="text-muted-foreground text-xs">{b.listing.locality}</div>
                     </TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">
                       {b.renterId.slice(0, 8)}...
@@ -296,14 +292,14 @@ function BookingsContent() {
                       <div className="text-[10px]">to {formatIST(new Date(b.endAt), "dd MMM, HH:mm")}</div>
                     </TableCell>
                     <TableCell className="font-semibold text-xs">
-                      {formatINR(b.pricing.total.paise)}
+                      {formatINR(b.total.paise)}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => openBookingDetail(b.id)}
-                        aria-label={`View full history for booking ${b.code || b.id}`}
+                        aria-label={`View full history for booking ${b.id.slice(0, 8)}`}
                       >
                         <Eye className="size-4" />
                       </Button>
@@ -350,7 +346,7 @@ function BookingsContent() {
         <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>
-              Booking Detail: {detail?.booking.code || detail?.booking.id.slice(0, 8)}
+              Booking Detail: {detail?.booking.id.slice(0, 8)}
             </DialogTitle>
             <DialogDescription>
               Comprehensive support inspection: state, payment status, financial ledger, session events, incidents, and notifications (FR-10).
@@ -373,7 +369,7 @@ function BookingsContent() {
                 <div className="flex items-center gap-2">
                   <StatusBadge status={detail.booking.status} />
                   <span className="bg-primary/10 text-primary font-bold px-2 py-1 rounded text-sm">
-                    {formatINR(detail.booking.pricing.total.paise)}
+                    {formatINR(detail.booking.total.paise)}
                   </span>
                 </div>
               </div>
@@ -391,10 +387,10 @@ function BookingsContent() {
                 {/* Tab: Financials & Ledger */}
                 <TabsContent value="financials" className="space-y-4 pt-3">
                   <div className="grid grid-cols-2 gap-3 rounded-lg border p-3">
-                    <div><strong>Subtotal:</strong> {formatINR(detail.booking.pricing.subtotal.paise)}</div>
-                    <div><strong>Renter Fee:</strong> {formatINR(detail.booking.pricing.renterFee.paise)}</div>
-                    <div><strong>Platform Commission:</strong> {detail.booking.pricing.commission ? formatINR(detail.booking.pricing.commission.paise) : "—"}</div>
-                    <div><strong>Host Earnings:</strong> {detail.booking.pricing.hostEarnings ? formatINR(detail.booking.pricing.hostEarnings.paise) : "—"}</div>
+                    <div><strong>Subtotal:</strong> {formatINR(detail.booking.subtotal.paise)}</div>
+                    <div><strong>Renter Fee:</strong> {formatINR(detail.booking.renterFee.paise)}</div>
+                    <div><strong>Platform Commission:</strong> {detail.booking.commission ? formatINR(detail.booking.commission.paise) : "—"}</div>
+                    <div><strong>Host Earnings:</strong> {detail.booking.hostEarnings ? formatINR(detail.booking.hostEarnings.paise) : "—"}</div>
                   </div>
 
                   <div className="space-y-2">

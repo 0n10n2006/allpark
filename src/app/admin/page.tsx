@@ -9,7 +9,6 @@ import {
   BellOff,
   ArrowRight,
   Shield,
-  FileCheck,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoadingState } from "@/components/common/loading-state";
