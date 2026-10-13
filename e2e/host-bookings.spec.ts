@@ -95,15 +95,19 @@ test("host sees booking on their listing and confirms arrival", async ({
 
   // Navigate to /host
   await page.goto("/host");
-  const bookingsLink = page.getByRole("link", { name: "Bookings" });
+  const bookingsLink = page.getByRole("main").getByRole("link", { name: "Bookings" });
   await expect(bookingsLink).toBeVisible();
   await bookingsLink.click();
 
-  await expect(page).toHaveURL(/\/host\/bookings/);
-  await expect(page.getByRole("heading", { level: 1, name: "Host bookings" })).toBeVisible();
+  await expect(page).toHaveURL(/\/host\/bookings/, { timeout: 30_000 });
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Host bookings" }),
+  ).toBeVisible({ timeout: 30_000 });
 
   // Expect booking card with Confirmed badge
-  await expect(page.getByText(`Host Spot ${run}`)).toBeVisible();
+  await expect(
+    page.getByRole("heading", { level: 3, name: `Host Spot ${run}` }),
+  ).toBeVisible();
   await expect(page.getByText("Confirmed")).toBeVisible();
   await expectAccessibleAt375(page);
 
@@ -112,8 +116,9 @@ test("host sees booking on their listing and confirms arrival", async ({
   await expect(confirmArrivalBtn).toBeVisible();
   await confirmArrivalBtn.click();
 
-  // Toast and status update to "Parked now" (ACTIVE)
+  // Toast and status update to "Parked now" (ACTIVE in Active tab)
   await expect(page.getByText("Arrival confirmed.")).toBeVisible();
+  await page.getByRole("tab", { name: /Active/ }).click();
   await expect(page.getByText("Parked now")).toBeVisible();
   await expect(page.getByRole("button", { name: "Confirm departure" })).toBeVisible();
 

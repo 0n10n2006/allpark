@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import { expect, test } from "@playwright/test";
 import pg from "pg";
@@ -131,9 +132,32 @@ test("extend payment: order → Razorpay Checkout → verified confirmation → 
     route.fulfill({ contentType: "application/javascript", body: FAKE_CHECKOUT_JS }),
   );
   const { userId } = await signIn(context, baseURL!);
-  const { rows: listings } = await db.query<{ id: string }>(
-    `SELECT id FROM "Listing" WHERE status = 'PUBLISHED' ORDER BY random() LIMIT 1`,
-  );
+  const hostId = (
+    await db.query<{ id: string }>(
+      `INSERT INTO "User" (email, roles, name, "updatedAt")
+       VALUES ($1, '{HOST}', 'Extend Host', now()) RETURNING id`,
+      [`extend-host-${randomUUID()}@e2e.local`],
+    )
+  ).rows[0].id;
+  const listingId = (
+    await db.query<{ id: string }>(
+      `INSERT INTO "Listing" ("hostId", title, description, address, locality, lat, lng,
+         "approxLat", "approxLng", "spaceType", "vehicleTypes", "hourlyPaise",
+         "accessInstructions", status, "updatedAt")
+       VALUES ($1, 'Extend Spot', 'Covered', '12 Extend Way', 'Shivajinagar', 18.53, 73.84, 18.531, 73.84, 'STILT',
+         '{SEDAN}', 5000, 'Gate code 4321', 'PUBLISHED', now()) RETURNING id`,
+      [hostId],
+    )
+  ).rows[0].id;
+
+  for (let weekday = 0; weekday < 7; weekday++) {
+    await db.query(
+      `INSERT INTO "AvailabilityRule" ("listingId", weekday, "startMinute", "endMinute", "updatedAt")
+       VALUES ($1, $2, 0, 1440, now())`,
+      [listingId, weekday],
+    );
+  }
+
   const hours = 24 * 400 + Math.floor(Math.random() * 24 * 3000);
   const { rows } = await db.query<{ id: string }>(
     `INSERT INTO "Booking" ("listingId", "renterId", "rentalType", "startAt", "endAt", "blockedUntil",
@@ -143,7 +167,7 @@ test("extend payment: order → Razorpay Checkout → verified confirmation → 
        date_trunc('hour', now()) + make_interval(hours => $3 + 1),
        null, 12000, 1200, 10800, 12000, 'CONFIRMED', now())
      RETURNING id`,
-    [listings[0].id, userId, hours],
+    [listingId, userId, hours],
   );
   const bookingId = rows[0].id;
 
