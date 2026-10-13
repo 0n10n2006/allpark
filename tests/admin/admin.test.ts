@@ -14,6 +14,7 @@ const { GET: getBookings } = await import("@/app/api/admin/bookings/route");
 const { GET: getBookingDetail } = await import("@/app/api/admin/bookings/[id]/route");
 const { GET: getPayments } = await import("@/app/api/admin/payments/route");
 const { GET: getJobs } = await import("@/app/api/admin/jobs/route");
+const { GET: getReviews } = await import("@/app/api/admin/reviews/route");
 const { GET: getStats } = await import("@/app/api/admin/stats/route");
 
 beforeEach(() => truncateAll());
@@ -52,6 +53,12 @@ describe("Admin APIs (T4.6 / FR-13)", () => {
 
     const resJobs = await getJobs(req("/api/admin/jobs", { cookie: renter.cookie }), noParams);
     expect(resJobs.status).toBe(403);
+
+    const resReviews = await getReviews(
+      req("/api/admin/reviews", { cookie: renter.cookie }),
+      noParams,
+    );
+    expect(resReviews.status).toBe(403);
 
     const resVerify = await verifyHost(
       req(`/api/admin/users/${targetId}/verify-host`, {
@@ -275,5 +282,71 @@ describe("Admin APIs (T4.6 / FR-13)", () => {
     const body = await res.json();
     expect(body.items.length).toBe(1);
     expect(body.items[0].name).toBe("Special Search Target");
+  });
+
+  test("list reviews with moderationStatus filter and author first name", async () => {
+    const admin = await seedSession(["ADMIN"]);
+    const author = await seedSession(["RENTER"]);
+    const host = await seedSession(["HOST"]);
+
+    const listing = await testDb.listing.create({
+      data: {
+        hostId: host.user.id,
+        title: "Koramangala Space",
+        description: "Secure underground parking",
+        address: "100 Feet Rd",
+        locality: "Koramangala",
+        city: "Bengaluru",
+        lat: 12.9352,
+        lng: 77.6245,
+        approxLat: 12.935,
+        approxLng: 77.624,
+        spaceType: "COVERED",
+        vehicleTypes: ["SEDAN"],
+        status: "PUBLISHED",
+      },
+    });
+
+    const endAt = new Date();
+    const startAt = new Date(Date.now() - 3600000);
+    const booking = await testDb.booking.create({
+      data: {
+        renterId: author.user.id,
+        listingId: listing.id,
+        rentalType: "HOURLY",
+        startAt,
+        endAt,
+        blockedUntil: endAt,
+        status: "COMPLETED",
+        subtotalPaise: 10000,
+        renterFeePaise: 0,
+        commissionPaise: 1000,
+        hostEarningsPaise: 9000,
+        totalPaise: 10000,
+        currency: "INR",
+      },
+    });
+
+    await testDb.review.create({
+      data: {
+        bookingId: booking.id,
+        listingId: listing.id,
+        authorId: author.user.id,
+        rating: 4,
+        comment: "Great spot, easy access",
+        moderationStatus: "PENDING",
+      },
+    });
+
+    const res = await getReviews(
+      req("/api/admin/reviews?moderationStatus=PENDING", { cookie: admin.cookie }),
+      noParams,
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.items.length).toBe(1);
+    expect(body.items[0].listingTitle).toBe("Koramangala Space");
+    expect(body.items[0].moderationStatus).toBe("PENDING");
+    expect(body.items[0].rating).toBe(4);
   });
 });

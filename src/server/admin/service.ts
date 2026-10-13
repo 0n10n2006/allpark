@@ -10,6 +10,8 @@ import {
   type AdminListListingsResponse,
   type AdminListPaymentsQuery,
   type AdminListPaymentsResponse,
+  type AdminListReviewsQuery,
+  type AdminListReviewsResponse,
   type AdminListUsersQuery,
   type AdminListUsersResponse,
   type AdminListing,
@@ -651,3 +653,49 @@ export async function adminListNotifications(q: {
     nextCursor: rows.length > limit ? page.at(-1)!.id : null,
   };
 }
+
+// ── Reviews ──
+
+export async function adminListReviews(
+  admin: CurrentUser,
+  q: AdminListReviewsQuery,
+): Promise<AdminListReviewsResponse> {
+  validateCursor(q.cursor);
+  const limit = q.limit;
+  const where: Prisma.ReviewWhereInput = {
+    ...(q.moderationStatus ? { moderationStatus: q.moderationStatus } : {}),
+    ...(q.listingId ? { listingId: q.listingId } : {}),
+  };
+
+  const rows = await db.review.findMany({
+    where,
+    include: {
+      listing: { select: { title: true } },
+      author: { select: { name: true } },
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: limit + 1,
+    cursor: q.cursor ? { id: q.cursor } : undefined,
+    skip: q.cursor ? 1 : undefined,
+  });
+
+  const page = rows.slice(0, limit);
+  return {
+    items: page.map((r) => {
+      const firstName = r.author.name?.trim().split(/\s+/)[0] ?? null;
+      return {
+        id: r.id,
+        bookingId: r.bookingId,
+        listingId: r.listingId,
+        listingTitle: r.listing.title,
+        reviewerFirstName: firstName,
+        rating: r.rating,
+        comment: r.comment,
+        moderationStatus: r.moderationStatus,
+        createdAt: r.createdAt.toISOString(),
+      };
+    }),
+    nextCursor: rows.length > limit ? page.at(-1)!.id : null,
+  };
+}
+

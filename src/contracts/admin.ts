@@ -6,6 +6,7 @@ import {
   HostVerificationStatus,
   JobStatus,
   ListingStatus,
+  ModerationStatus,
   NotificationStatus,
   PaymentStatus,
   PayoutStatus,
@@ -205,6 +206,28 @@ export const AdminSuspendListingBody = z.strictObject({
   reason: AdminReason,
 });
 export type AdminSuspendListingBody = z.infer<typeof AdminSuspendListingBody>;
+
+export const AdminReview = z.object({
+  id: Uuid,
+  bookingId: Uuid,
+  listingId: Uuid,
+  listingTitle: z.string(),
+  reviewerFirstName: z.string().nullable(),
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().nullable(),
+  moderationStatus: z.enum(ModerationStatus),
+  createdAt: IsoDateTime,
+});
+export type AdminReview = z.infer<typeof AdminReview>;
+
+/** GET /api/admin/reviews */
+export const AdminListReviewsQuery = PaginationQuery.extend({
+  moderationStatus: z.enum(ModerationStatus).optional(),
+  listingId: Uuid.optional(),
+});
+export type AdminListReviewsQuery = z.infer<typeof AdminListReviewsQuery>;
+export const AdminListReviewsResponse = page(AdminReview);
+export type AdminListReviewsResponse = z.infer<typeof AdminListReviewsResponse>;
 
 /** POST /api/admin/reviews/:id/moderate */
 export const AdminModerateReviewBody = z.strictObject({
