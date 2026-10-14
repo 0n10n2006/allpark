@@ -23,6 +23,8 @@ export class FakeProvider implements PaymentProvider {
   payments = new Map<string, ProviderPayment>();
   refunds: { id: string; paymentId: string; amount: number; receipt: string }[] = [];
   refundCalls = 0;
+  /** Provider-side refund status by refund id (tests flip it to processed/failed). */
+  refundStatus = new Map<string, ProviderRefund["status"]>();
 
   async createOrder(i: { amountPaise: number; currency: string; receipt: string }) {
     const id = `order_${randomUUID().slice(0, 12)}`;
@@ -68,7 +70,7 @@ export class FakeProvider implements PaymentProvider {
   }): Promise<ProviderRefund> {
     this.refundCalls++;
     const prior = this.refunds.find((r) => r.receipt === i.receipt);
-    if (prior) return { id: prior.id, status: "pending" };
+    if (prior) return { id: prior.id, status: this.refundStatus.get(prior.id) ?? "pending" };
     const r = {
       id: `rfnd_${randomUUID().slice(0, 12)}`,
       paymentId: i.paymentId,
@@ -77,6 +79,11 @@ export class FakeProvider implements PaymentProvider {
     };
     this.refunds.push(r);
     return { id: r.id, status: "pending" };
+  }
+
+  async fetchRefund(paymentId: string, receipt: string): Promise<ProviderRefund | null> {
+    const r = this.refunds.find((x) => x.paymentId === paymentId && x.receipt === receipt);
+    return r ? { id: r.id, status: this.refundStatus.get(r.id) ?? "pending" } : null;
   }
 
   verifyPaymentSignature(orderId: string, paymentId: string, signature: string) {

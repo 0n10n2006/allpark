@@ -38,6 +38,8 @@ export interface PaymentProvider {
     receipt: string;
     notes: Record<string, string>;
   }): Promise<ProviderRefund>;
+  /** Read-only: the provider refund for our Refund id (`receipt`), or null if it never arrived. */
+  fetchRefund(paymentId: string, receipt: string): Promise<ProviderRefund | null>;
   verifyPaymentSignature(orderId: string, paymentId: string, signature: string): boolean;
   verifyWebhookSignature(rawBody: string, signature: string): boolean;
 }
@@ -107,12 +109,17 @@ export class RazorpayProvider implements PaymentProvider {
     );
   }
 
+  async fetchRefund(paymentId: string, receipt: string) {
+    const r = (await this.rz.payments.fetchMultipleRefund(paymentId, { count: 100 })).items.find(
+      (x) => x.receipt === receipt,
+    );
+    return r ? { id: r.id, status: r.status as ProviderRefund["status"] } : null;
+  }
+
   async refund(i: Parameters<PaymentProvider["refund"]>[0]) {
     // A retry after a crash between this call and our DB write must not refund twice.
-    const prior = (
-      await this.rz.payments.fetchMultipleRefund(i.paymentId, { count: 100 })
-    ).items.find((r) => r.receipt === i.receipt);
-    if (prior) return { id: prior.id, status: prior.status as ProviderRefund["status"] };
+    const prior = await this.fetchRefund(i.paymentId, i.receipt);
+    if (prior) return prior;
     const r = await this.rz.payments.refund(i.paymentId, {
       amount: i.amountPaise,
       receipt: i.receipt,
