@@ -255,6 +255,15 @@ export const endpoints: Endpoint[] = [
   },
   {
     method: "POST",
+    path: "/api/bookings/:id/evidence/sign",
+    auth: "user",
+    task: "T4.7a",
+    params: IdParams,
+    body: listings.SignPhotoUploadBody,
+    response: listings.SignPhotoUploadResponse,
+  },
+  {
+    method: "POST",
     path: "/api/monthly/:id/renew",
     auth: "user",
     task: "T4.3",

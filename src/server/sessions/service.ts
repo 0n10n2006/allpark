@@ -23,6 +23,8 @@ import { transition } from "@/server/bookings/state";
 import { db } from "@/server/db";
 import { HttpError } from "@/server/http/errors";
 import { enqueue } from "@/server/jobs";
+import { listingFolder } from "@/server/listings/cloudinary";
+import { isOurEvidenceUrl, isOurUploadUrl } from "@/server/media/evidence";
 import { cancelScheduled, notify } from "@/server/notifications";
 import { sessionHooks } from "@/server/payments/session-hooks";
 import { createExtensionOrder } from "@/server/payments/service";
@@ -535,23 +537,9 @@ function incidentDto(i: {
   };
 }
 
-/** Evidence must be a delivery URL of our own Cloudinary uploads for this listing or booking. */
-function isOurEvidence(raw: string, listingId: string, bookingId: string) {
-  const cloud = process.env.CLOUDINARY_CLOUD_NAME;
-  if (!cloud) return false;
-  const u = new URL(raw);
-  // An upload delivery URL (not /image/fetch/<remote>) in listings/<id>/ or incidents/<id>/.
-  const m = /^\/([^/]+)\/image\/upload\/(?:v\d+\/)?(listings|incidents)\/([^/]+)\/[^/]+$/.exec(
-    u.pathname,
-  );
-  return (
-    u.protocol === "https:" &&
-    u.hostname === "res.cloudinary.com" &&
-    !!m &&
-    m[1] === cloud &&
-    m[3] === (m[2] === "listings" ? listingId : bookingId)
-  );
-}
+/** Evidence must be our own Cloudinary upload for this booking, or a photo of this listing. */
+const isOurEvidence = (url: string, listingId: string, bookingId: string) =>
+  isOurEvidenceUrl(url, bookingId) || isOurUploadUrl(url, listingFolder(listingId));
 
 /**
  * POST /api/bookings/:id/incidents (host). Reports an overstay or blocked access with

@@ -301,6 +301,18 @@ export const examples: Record<
     body: { newEndAt: T1 },
     response: { booking, quote, requiresPayment: false, payment: null },
   },
+  "POST /api/bookings/:id/evidence/sign": {
+    params,
+    body: {},
+    response: {
+      cloudName: "demo",
+      apiKey: "123",
+      timestamp: 1760000000,
+      signature: "abc",
+      folder: `incidents/${ID}`,
+      publicId: `incidents/${ID}/x`,
+    },
+  },
   "POST /api/bookings/:id/incidents": {
     params,
     body: { kind: "OVERSTAY" },

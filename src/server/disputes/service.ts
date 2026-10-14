@@ -18,6 +18,7 @@ import { cancelBookingReminders, sendCancellationUpdate } from "@/server/cancell
 import { refundablePayment } from "@/server/cancellations/service";
 import { db } from "@/server/db";
 import { HttpError } from "@/server/http/errors";
+import { isOurEvidenceUrl } from "@/server/media/evidence";
 import { createRefundTx } from "@/server/payments/refunds";
 
 // FR-08, FR-10, FR-13. A dispute is tracked on its own row; only a booking in session
@@ -35,16 +36,6 @@ const toDispute = (d: DisputeRow): Dispute =>
     createdAt: d.createdAt.toISOString(),
   });
 
-/** Evidence must be an image we host: `<cloud>/image/upload/[v123/]disputes/<bookingId>/<id>.<ext>`. */
-export function isEvidenceUrl(url: string, bookingId: string) {
-  const cloud = process.env.CLOUDINARY_CLOUD_NAME;
-  if (!cloud) return false;
-  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(
-    `^https://res\\.cloudinary\\.com/${esc(cloud)}/image/upload/(?:v\\d+/)?disputes/${bookingId}/[A-Za-z0-9_-]+\\.(?:jpg|png|webp)$`,
-  ).test(url);
-}
-
 /** POST /api/disputes. Renter or host of the booking; anyone else gets 404. */
 export async function createDispute(user: CurrentUser, body: CreateDisputeBody): Promise<Dispute> {
   const b = await db.booking.findUnique({
@@ -54,7 +45,7 @@ export async function createDispute(user: CurrentUser, body: CreateDisputeBody):
   if (!b || (b.renterId !== user.id && b.listing.hostId !== user.id))
     throw new HttpError("not_found", "Booking not found");
   const evidenceUrls = body.evidenceUrls ?? [];
-  if (evidenceUrls.some((u) => !isEvidenceUrl(u, b.id)))
+  if (evidenceUrls.some((u) => !isOurEvidenceUrl(u, b.id)))
     throw new HttpError("validation_error", "Evidence must be uploaded through ParkShare", {
       reason: "evidence_url_not_allowed",
     });
