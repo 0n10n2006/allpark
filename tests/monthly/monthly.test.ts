@@ -13,6 +13,7 @@ const {
   getMonthlyAgreement,
   handleRenewalReminder,
   handleMonthlyExpire,
+  handleCloseTerm,
 } = await import("@/server/monthly/service");
 const { seedListing, seedQuote, seedUser, seedVehicle, ist, outcome } =
   await import("../booking/fixtures");
@@ -118,6 +119,10 @@ describe("monthly rentals (FR-09)", () => {
     expect(reminderJob).not.toBeNull();
     const expectedReminderAt = new Date(endAt.getTime() - 7 * 24 * 60 * 60 * 1000);
     expect(reminderJob!.runAt.getTime()).toBe(expectedReminderAt.getTime());
+    const closeJob = await testDb.job.findUniqueOrThrow({
+      where: { idempotencyKey: `monthly.closeTerm:${booking.id}` },
+    });
+    expect(closeJob.runAt.getTime()).toBe(endAt.getTime());
 
     const expireJob = await testDb.job.findFirst({
       where: { type: "monthly.expire" },
@@ -549,5 +554,52 @@ describe("monthly rentals (FR-09)", () => {
     const stranger = await seedUser();
     const res = await outcome(getMonthlyAgreement(asUser(stranger.id), agreement.id));
     expect(res.status).toBe(404);
+  });
+
+  it("closeTerm completes the ended term's own booking as system, leaving the renewal alone", async () => {
+    const listing = await seedListing();
+    const renter = await seedUser();
+    const vehicle = await seedVehicle(renter.id);
+    const start1 = new Date(Date.now() - 40 * 24 * 3600_000);
+    const end1 = monthlyTermEnd(start1);
+    const term = (startAt: Date, endAt: Date) =>
+      testDb.booking.create({
+        data: {
+          listingId: listing.id,
+          renterId: renter.id,
+          vehicleId: vehicle.id,
+          rentalType: "MONTHLY",
+          startAt,
+          endAt,
+          blockedUntil: endAt,
+          status: "CONFIRMED",
+          subtotalPaise: 500_000,
+          commissionPaise: 50_000,
+          hostEarningsPaise: 450_000,
+          totalPaise: 500_000,
+        },
+      });
+    const ended = await term(start1, end1);
+    const renewal = await term(end1, monthlyTermEnd(end1));
+
+    await handleCloseTerm(ended.id);
+    await handleCloseTerm(ended.id); // a retried job is a no-op
+    await handleCloseTerm(renewal.id); // not ended yet
+
+    const rows = await testDb.booking.findMany({ select: { id: true, status: true } });
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        { id: ended.id, status: "COMPLETED" },
+        { id: renewal.id, status: "CONFIRMED" },
+      ]),
+    );
+    const audits = await testDb.auditLog.findMany({ where: { action: "booking.transition" } });
+    expect(audits).toHaveLength(1);
+    expect(audits[0]).toMatchObject({
+      targetId: ended.id,
+      actorId: null,
+      reason: "monthly_term_ended",
+      metadata: { from: "CONFIRMED", to: "COMPLETED" },
+    });
   });
 });

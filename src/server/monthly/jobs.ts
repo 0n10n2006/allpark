@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { registerJob } from "@/server/jobs/registry";
-import { handleMonthlyExpire, handleRenewalReminder } from "./service";
+import { handleCloseTerm, handleMonthlyExpire, handleRenewalReminder } from "./service";
 
 const AgreementJobPayload = z.object({
   agreementId: z.string().uuid(),
@@ -14,3 +14,8 @@ registerJob("monthly.renewalReminder", AgreementJobPayload, async ({ agreementId
 registerJob("monthly.expire", AgreementJobPayload, async ({ agreementId, termEndAt }) => {
   await handleMonthlyExpire(agreementId, termEndAt);
 });
+
+// Literal type, not CLOSE_TERM_JOB: this module is reached through the jobs import cycle.
+registerJob("monthly.closeTerm", z.object({ bookingId: z.uuid() }), ({ bookingId }) =>
+  handleCloseTerm(bookingId),
+);

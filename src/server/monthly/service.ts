@@ -4,6 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { CurrentUser } from "@/server/auth/guards";
 import { createHold, monthlyTermEnd } from "@/server/availability/service";
 import { getBooking } from "@/server/bookings/service";
+import { transition } from "@/server/bookings/state";
 import { db } from "@/server/db";
 import { HttpError } from "@/server/http/errors";
 import { enqueue } from "@/server/jobs";
@@ -12,6 +13,17 @@ import { createQuote } from "@/server/pricing/quotes";
 
 // FR-09: Monthly rentals and manual renewal.
 // NO automated charge paths anywhere here; payment uses standard /checkout/[bookingId] flow.
+
+export const CLOSE_TERM_JOB = "monthly.closeTerm";
+
+/** At term end the term's own booking completes (renewed or not), so the host can be paid for it. */
+function scheduleCloseTerm(bookingId: string, termEnd: Date) {
+  return enqueue(
+    CLOSE_TERM_JOB,
+    { bookingId },
+    { runAt: termEnd, idempotencyKey: `${CLOSE_TERM_JOB}:${bookingId}` },
+  );
+}
 
 export async function onMonthlyConfirmed(tx: Prisma.TransactionClient, bookingId: string) {
   const booking = await tx.booking.findUnique({
@@ -70,6 +82,8 @@ export async function onMonthlyConfirmed(tx: Prisma.TransactionClient, bookingId
       },
     );
 
+    await scheduleCloseTerm(booking.id, termEnd);
+
     return agreement;
   } else {
     const agreement = await tx.monthlyAgreement.create({
@@ -122,6 +136,8 @@ export async function onMonthlyConfirmed(tx: Prisma.TransactionClient, bookingId
         idempotencyKey: `monthly:expire:${agreement.id}:${termEnd.toISOString()}`,
       },
     );
+
+    await scheduleCloseTerm(booking.id, termEnd);
 
     return agreement;
   }
@@ -467,5 +483,17 @@ export async function handleMonthlyExpire(agreementId: string, termEndAt: string
   });
   await notify(agreement.listing.hostId, "MONTHLY_EXPIRED_HOST", payload, {
     idempotencyKey: `monthly:expired:host:${agreement.id}:${termEndAt}`,
+  });
+}
+
+/** Job at termEnd: CONFIRMED/ACTIVE → COMPLETED, audited as system. Anything else is left alone. */
+export async function handleCloseTerm(bookingId: string) {
+  await db.$transaction(async (tx) => {
+    const [b] = await tx.$queryRaw<{ status: string; rentalType: string; endAt: Date }[]>`
+      SELECT status::text, "rentalType"::text, "endAt" FROM "Booking"
+      WHERE id = ${bookingId}::uuid FOR UPDATE`;
+    if (!b || b.rentalType !== "MONTHLY" || b.endAt > new Date()) return;
+    if (b.status !== "CONFIRMED" && b.status !== "ACTIVE") return;
+    await transition(tx, bookingId, "COMPLETED", null, "monthly_term_ended");
   });
 }
