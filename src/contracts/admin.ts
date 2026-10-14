@@ -6,6 +6,7 @@ import {
   HostVerificationStatus,
   JobStatus,
   ListingStatus,
+  ModerationStatus,
   NotificationStatus,
   PaymentStatus,
   PayoutStatus,
@@ -35,6 +36,8 @@ export const AdminUser = z.object({
   roles: z.array(z.enum(UserRole)),
   hostVerificationStatus: z.enum(HostVerificationStatus),
   deletionRequestedAt: IsoDateTime.nullable(),
+  suspendedAt: IsoDateTime.nullable().optional(),
+  suspendedReason: z.string().nullable().optional(),
   createdAt: IsoDateTime,
 });
 export type AdminUser = z.infer<typeof AdminUser>;
@@ -204,6 +207,28 @@ export const AdminSuspendListingBody = z.strictObject({
 });
 export type AdminSuspendListingBody = z.infer<typeof AdminSuspendListingBody>;
 
+export const AdminReview = z.object({
+  id: Uuid,
+  bookingId: Uuid,
+  listingId: Uuid,
+  listingTitle: z.string(),
+  reviewerFirstName: z.string().nullable(),
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().nullable(),
+  moderationStatus: z.enum(ModerationStatus),
+  createdAt: IsoDateTime,
+});
+export type AdminReview = z.infer<typeof AdminReview>;
+
+/** GET /api/admin/reviews */
+export const AdminListReviewsQuery = PaginationQuery.extend({
+  moderationStatus: z.enum(ModerationStatus).optional(),
+  listingId: Uuid.optional(),
+});
+export type AdminListReviewsQuery = z.infer<typeof AdminListReviewsQuery>;
+export const AdminListReviewsResponse = page(AdminReview);
+export type AdminListReviewsResponse = z.infer<typeof AdminListReviewsResponse>;
+
 /** POST /api/admin/reviews/:id/moderate */
 export const AdminModerateReviewBody = z.strictObject({
   decision: z.enum(["APPROVED", "REJECTED"]),
@@ -329,3 +354,14 @@ export const AdminResolveReportBody = z.strictObject({
   reason: AdminReason,
 });
 export type AdminResolveReportBody = z.infer<typeof AdminResolveReportBody>;
+
+export const AdminDashboardStats = z.object({
+  openDisputesCount: z.number().int().min(0),
+  openReportsCount: z.number().int().min(0),
+  pendingHostVerificationsCount: z.number().int().min(0),
+  pendingPayoutsCount: z.number().int().min(0),
+  deadJobsCount: z.number().int().min(0),
+  failedNotificationsCount: z.number().int().min(0),
+});
+export type AdminDashboardStats = z.infer<typeof AdminDashboardStats>;
+

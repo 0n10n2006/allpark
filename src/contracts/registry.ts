@@ -543,6 +543,14 @@ export const endpoints: Endpoint[] = [
     response: AdminActionResponse,
   },
   {
+    method: "GET",
+    path: "/api/admin/reviews",
+    auth: "admin",
+    task: "T4.6",
+    query: admin.AdminListReviewsQuery,
+    response: admin.AdminListReviewsResponse,
+  },
+  {
     method: "POST",
     path: "/api/admin/reviews/:id/moderate",
     auth: "admin",
@@ -611,5 +619,12 @@ export const endpoints: Endpoint[] = [
     params: IdParams,
     body: admin.AdminResolveReportBody,
     response: AdminActionResponse,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/stats",
+    auth: "admin",
+    task: "T4.6",
+    response: admin.AdminDashboardStats,
   },
 ];

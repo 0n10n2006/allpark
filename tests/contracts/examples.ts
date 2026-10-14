@@ -621,6 +621,25 @@ export const examples: Record<
     body: { outcome: "RESOLVED", resolution: "Refund issued to renter.", reason },
     response: adminAction,
   },
+  "GET /api/admin/reviews": {
+    query: { moderationStatus: "PENDING" },
+    response: {
+      items: [
+        {
+          id: ID,
+          bookingId: ID2,
+          listingId: ID,
+          listingTitle: "Covered spot in Koramangala",
+          reviewerFirstName: "Asha",
+          rating: 5,
+          comment: "Great spot!",
+          moderationStatus: "PENDING",
+          createdAt: T0,
+        },
+      ],
+      nextCursor: null,
+    },
+  },
   "POST /api/admin/reviews/:id/moderate": {
     params,
     body: { decision: "REJECTED", reason },
@@ -696,5 +715,15 @@ export const examples: Record<
     params,
     body: { action: "ACTION", resolution: "Suspended listing for violation.", reason },
     response: adminAction,
+  },
+  "GET /api/admin/stats": {
+    response: {
+      openDisputesCount: 2,
+      openReportsCount: 1,
+      pendingHostVerificationsCount: 3,
+      pendingPayoutsCount: 0,
+      deadJobsCount: 0,
+      failedNotificationsCount: 0,
+    },
   },
 };
