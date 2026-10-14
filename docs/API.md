@@ -73,6 +73,7 @@ Auth `user` = signed-in session; `admin` = ADMIN role. Mutating admin requests r
 | GET | `/api/admin/disputes` | admin | query: `AdminListDisputesQuery` | `AdminListDisputesResponse` | T4.4 |
 | GET | `/api/admin/disputes/:id` | admin | params: `IdParams` | `AdminDisputeDetail` | T4.4 |
 | POST | `/api/admin/disputes/:id/resolve` | admin | params: `IdParams`<br>body: `AdminResolveDisputeBody` | `AdminActionResponse` | T4.4 |
+| GET | `/api/admin/reviews` | admin | query: `AdminListReviewsQuery` | `AdminListReviewsResponse` | T4.6 |
 | POST | `/api/admin/reviews/:id/moderate` | admin | params: `IdParams`<br>body: `AdminModerateReviewBody` | `AdminActionResponse` | T4.6 |
 | GET | `/api/admin/payouts` | admin | query: `AdminListPayoutsQuery` | `AdminListPayoutsResponse` | T4.5 |
 | POST | `/api/admin/payouts` | admin · Idempotency-Key | body: `AdminCreatePayoutBody` | `AdminPayout` | T4.5 |
@@ -81,3 +82,4 @@ Auth `user` = signed-in session; `admin` = ADMIN role. Mutating admin requests r
 | GET | `/api/admin/payouts/reconciliation` | admin | — | `AdminPayoutReconciliationResponse` | T4.5 |
 | GET | `/api/admin/reports` | admin | query: `AdminListReportsQuery` | `AdminListReportsResponse` | T4.4b |
 | POST | `/api/admin/reports/:id/resolve` | admin | params: `IdParams`<br>body: `AdminResolveReportBody` | `AdminActionResponse` | T4.4b |
+| GET | `/api/admin/stats` | admin | — | `AdminDashboardStats` | T4.6 |
