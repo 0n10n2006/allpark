@@ -201,6 +201,22 @@ describe("payout creation", () => {
     expect(await testDb.hostPayout.count()).toBe(0);
   });
 
+  test("the hold-back comes from the active policy (payoutHoldbackHours)", async () => {
+    const { POLICY_DEFAULTS } = await import("@/config/policy");
+    await testDb.policyVersion.create({
+      data: {
+        version: 2,
+        policy: { ...POLICY_DEFAULTS, payoutHoldbackHours: 72 },
+        effectiveAt: new Date(0),
+      },
+    });
+    const { host, listing } = await hostWithListing();
+    const twoDaysAgo = await seedCompleted(listing.id, 7);
+    expect((await createPayout(host.user.id, [twoDaysAgo])).status).toBe(409);
+    const fourDaysAgo = await seedCompleted(listing.id, 8, 96 * HOUR);
+    expect((await createPayout(host.user.id, [fourDaysAgo])).status).toBe(201);
+  });
+
   test("the same Idempotency-Key replays instead of creating a second payout", async () => {
     const { host, listing } = await hostWithListing();
     const id = await seedCompleted(listing.id, 7);
