@@ -7,8 +7,8 @@ import { getBooking } from "@/server/bookings/service";
 import { db } from "@/server/db";
 import { HttpError } from "@/server/http/errors";
 import { enqueue } from "@/server/jobs";
+import { notify } from "@/server/notifications";
 import { createQuote } from "@/server/pricing/quotes";
-import { sendMonthlyNotification } from "./notify";
 
 // FR-09: Monthly rentals and manual renewal.
 // NO automated charge paths anywhere here; payment uses standard /checkout/[bookingId] flow.
@@ -246,11 +246,7 @@ export async function renewMonthly(
   };
 }
 
-export async function cancelMonthly(
-  user: CurrentUser,
-  agreementId: string,
-  reason: string,
-) {
+export async function cancelMonthly(user: CurrentUser, agreementId: string, reason: string) {
   if (!Uuid.safeParse(agreementId).success) {
     throw new HttpError("not_found", "Monthly agreement not found");
   }
@@ -262,9 +258,13 @@ export async function cancelMonthly(
     throw new HttpError("not_found", "Monthly agreement not found");
   }
   if (agreement.status !== "ACTIVE") {
-    throw new HttpError("conflict", "Only active monthly agreements can give notice of cancellation", {
-      reason: "agreement_not_active",
-    });
+    throw new HttpError(
+      "conflict",
+      "Only active monthly agreements can give notice of cancellation",
+      {
+        reason: "agreement_not_active",
+      },
+    );
   }
 
   const updated = await db.monthlyAgreement.update({
@@ -287,11 +287,18 @@ export async function cancelMonthly(
     },
   });
 
-  await sendMonthlyNotification(
+  // The renter's free-text reason stays in the audit log, out of the notification.
+  await notify(
     agreement.listing.hostId,
     "MONTHLY_NOTICE_GIVEN",
-    { agreementId: agreement.id, reason, endsAt: agreement.currentTermEndAt.toISOString() },
-    { idempotencyKey: `monthly:notice:host:${agreement.id}:${agreement.currentTermEndAt.toISOString()}` },
+    {
+      agreementId: agreement.id,
+      listingTitle: agreement.listing.title,
+      endAt: agreement.currentTermEndAt.toISOString(),
+    },
+    {
+      idempotencyKey: `monthly:notice:host:${agreement.id}:${agreement.currentTermEndAt.toISOString()}`,
+    },
   );
 
   return {
@@ -302,10 +309,7 @@ export async function cancelMonthly(
   };
 }
 
-export async function getMonthlyAgreement(
-  user: CurrentUser,
-  agreementId: string,
-) {
+export async function getMonthlyAgreement(user: CurrentUser, agreementId: string) {
   if (!Uuid.safeParse(agreementId).success) {
     throw new HttpError("not_found", "Monthly agreement not found");
   }
@@ -389,18 +393,15 @@ export async function getMonthlyAgreement(
 export async function handleRenewalReminder(agreementId: string, termEndAt: string) {
   const agreement = await db.monthlyAgreement.findUnique({
     where: { id: agreementId },
-    include: { bookings: { orderBy: { startAt: "desc" }, take: 1 } },
+    include: { listing: { select: { title: true } } },
   });
   if (!agreement || agreement.status !== "ACTIVE") return;
   if (agreement.currentTermEndAt.toISOString() !== termEndAt) return;
 
-  const latestBooking = agreement.bookings[0];
-  const renewUrl = latestBooking ? `/bookings/${latestBooking.id}` : `/bookings`;
-
-  await sendMonthlyNotification(
+  await notify(
     agreement.renterId,
     "MONTHLY_RENEWAL_DUE",
-    { agreementId: agreement.id, termEndAt, renewUrl },
+    { agreementId: agreement.id, listingTitle: agreement.listing.title, endAt: termEndAt },
     { idempotencyKey: `monthly:reminder:${agreement.id}:${termEndAt}` },
   );
 
@@ -456,17 +457,15 @@ export async function handleMonthlyExpire(agreementId: string, termEndAt: string
     },
   });
 
-  await sendMonthlyNotification(
-    agreement.renterId,
-    "MONTHLY_EXPIRED",
-    { agreementId: agreement.id, reason: "unpaid" },
-    { idempotencyKey: `monthly:expired:renter:${agreement.id}:${termEndAt}` },
-  );
-
-  await sendMonthlyNotification(
-    agreement.listing.hostId,
-    "MONTHLY_EXPIRED",
-    { agreementId: agreement.id, reason: "unpaid" },
-    { idempotencyKey: `monthly:expired:host:${agreement.id}:${termEndAt}` },
-  );
+  const payload = {
+    agreementId: agreement.id,
+    listingTitle: agreement.listing.title,
+    endAt: termEndAt,
+  };
+  await notify(agreement.renterId, "MONTHLY_EXPIRED_RENTER", payload, {
+    idempotencyKey: `monthly:expired:renter:${agreement.id}:${termEndAt}`,
+  });
+  await notify(agreement.listing.hostId, "MONTHLY_EXPIRED_HOST", payload, {
+    idempotencyKey: `monthly:expired:host:${agreement.id}:${termEndAt}`,
+  });
 }

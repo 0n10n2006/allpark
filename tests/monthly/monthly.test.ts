@@ -14,9 +14,8 @@ const {
   handleRenewalReminder,
   handleMonthlyExpire,
 } = await import("@/server/monthly/service");
-const { seedListing, seedQuote, seedUser, seedVehicle, ist, outcome } = await import(
-  "../booking/fixtures"
-);
+const { seedListing, seedQuote, seedUser, seedVehicle, ist, outcome } =
+  await import("../booking/fixtures");
 
 import type { CurrentUser } from "@/server/auth/guards";
 import type { UserRole } from "@/generated/prisma/client";
@@ -184,13 +183,7 @@ describe("monthly rentals (FR-09)", () => {
     });
 
     // Attempt renewal: must be blocked with 409
-    const res = await outcome(
-      renewMonthly(
-        asUser(renter.id),
-        agreement.id,
-        "key-renew-conflict",
-      ),
-    );
+    const res = await outcome(renewMonthly(asUser(renter.id), agreement.id, "key-renew-conflict"));
     expect(res.status).toBe(409);
     expect(res.reason).toBe("slot_unavailable");
   });
@@ -217,11 +210,7 @@ describe("monthly rentals (FR-09)", () => {
       },
     });
 
-    const result = await renewMonthly(
-      asUser(renter.id),
-      agreement.id,
-      "key-renew-success",
-    );
+    const result = await renewMonthly(asUser(renter.id), agreement.id, "key-renew-success");
 
     expect(result.hold).toBeDefined();
     expect(result.hold.status).toBe("PENDING_PAYMENT");
@@ -261,13 +250,7 @@ describe("monthly rentals (FR-09)", () => {
       },
     });
 
-    const res = await outcome(
-      renewMonthly(
-        asUser(stranger.id),
-        agreement.id,
-        "key-stranger",
-      ),
-    );
+    const res = await outcome(renewMonthly(asUser(stranger.id), agreement.id, "key-stranger"));
     expect(res.status).toBe(404);
   });
 
@@ -315,6 +298,11 @@ describe("monthly rentals (FR-09)", () => {
       },
     });
     expect(audit2.length).toBeGreaterThanOrEqual(1);
+    const reminders = await testDb.notification.findMany({
+      where: { type: "MONTHLY_RENEWAL_DUE" },
+    });
+    expect(reminders).toHaveLength(1);
+    expect(reminders[0]).toMatchObject({ userId: renter.id });
   });
 
   it("expire marks EXPIRED + audit when unpaid, and does nothing when renewed", async () => {
@@ -347,6 +335,15 @@ describe("monthly rentals (FR-09)", () => {
     });
     expect(expired?.status).toBe("EXPIRED");
     expect(expired?.endedAt?.getTime()).toBe(endAt.getTime());
+    expect(
+      await testDb.notification.findMany({
+        select: { userId: true, type: true },
+        orderBy: { type: "asc" },
+      }),
+    ).toEqual([
+      { userId: listing.hostId, type: "MONTHLY_EXPIRED_HOST" },
+      { userId: renter.id, type: "MONTHLY_EXPIRED_RENTER" },
+    ]);
 
     const audit = await testDb.auditLog.findFirst({
       where: {
@@ -435,11 +432,7 @@ describe("monthly rentals (FR-09)", () => {
       },
     });
 
-    const res = await cancelMonthly(
-      asUser(renter.id),
-      agreement.id,
-      "Moving to another state",
-    );
+    const res = await cancelMonthly(asUser(renter.id), agreement.id, "Moving to another state");
     expect(res.success).toBe(true);
     expect(res.status).toBe("NOTICE_GIVEN");
     expect(new Date(res.endedAt).getTime()).toBe(endAt.getTime());
@@ -458,6 +451,11 @@ describe("monthly rentals (FR-09)", () => {
     });
     expect(audit).not.toBeNull();
     expect(audit?.actorId).toBe(renter.id);
+    const notice = await testDb.notification.findFirstOrThrow({
+      where: { type: "MONTHLY_NOTICE_GIVEN" },
+    });
+    expect(notice.userId).toBe(listing.hostId);
+    expect(JSON.stringify(notice.payload)).not.toContain("Moving to another state");
     expect(audit?.reason).toBe("Moving to another state");
   });
 
@@ -534,10 +532,7 @@ describe("monthly rentals (FR-09)", () => {
     });
 
     // Renter can fetch
-    const history = await getMonthlyAgreement(
-      asUser(renter.id),
-      agreement.id,
-    );
+    const history = await getMonthlyAgreement(asUser(renter.id), agreement.id);
     expect(history.id).toBe(agreement.id);
     expect(history.terms).toHaveLength(1);
     expect(history.terms[0].id).toBe(booking.id);
@@ -547,17 +542,12 @@ describe("monthly rentals (FR-09)", () => {
     expect(history.notices[0].action).toBe("monthly.created");
 
     // Host can also fetch
-    const hostHistory = await getMonthlyAgreement(
-      asUser(listing.hostId, ["HOST"]),
-      agreement.id,
-    );
+    const hostHistory = await getMonthlyAgreement(asUser(listing.hostId, ["HOST"]), agreement.id);
     expect(hostHistory.id).toBe(agreement.id);
 
     // Stranger gets 404
     const stranger = await seedUser();
-    const res = await outcome(
-      getMonthlyAgreement(asUser(stranger.id), agreement.id),
-    );
+    const res = await outcome(getMonthlyAgreement(asUser(stranger.id), agreement.id));
     expect(res.status).toBe(404);
   });
 });

@@ -194,6 +194,15 @@ export const templates = {
       `/host/monthly/${p.agreementId}`,
     ),
   ),
+  MONTHLY_NOTICE_GIVEN: template("transactional", monthly, (p) =>
+    make(
+      {
+        title: "Monthly notice given",
+        body: `The renter of ${p.listingTitle} gave notice. The agreement ends ${when(p.endAt)}.`,
+      },
+      `/host/monthly/${p.agreementId}`,
+    ),
+  ),
   PAYOUT_FAILED_HOST: template("transactional", z.object({ payoutId: id }), () =>
     make(
       {

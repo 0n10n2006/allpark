@@ -413,6 +413,15 @@ describe("settlement wiring (T4.2, T4.3)", () => {
       }),
     ).toBe(1);
     expect(await testDb.notification.count({ where: { type: "SESSION_ENDING" } })).toBe(2);
+    const confirmedFor = await testDb.notification.findMany({
+      where: { type: { startsWith: "BOOKING_CONFIRMED_" } },
+      select: { userId: true, type: true },
+    });
+    expect(confirmedFor).toContainEqual({
+      userId: renter.user.id,
+      type: "BOOKING_CONFIRMED_RENTER",
+    });
+    expect(confirmedFor).toHaveLength(2);
   });
 
   test("a confirmed MONTHLY booking creates its agreement", async () => {

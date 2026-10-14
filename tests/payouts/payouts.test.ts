@@ -5,8 +5,6 @@ import { noParams, req, seedSession } from "../http/helpers";
 import { FakeProvider } from "../payments/fake-provider";
 
 vi.mock("@/server/db", async () => ({ db: (await import("../setup/db")).testDb }));
-const notify = vi.hoisted(() => vi.fn());
-vi.mock("@/server/payouts/notify", () => ({ sendNotification: notify }));
 
 const { GET: earningsRoute } = await import("@/app/api/host/earnings/route");
 const { GET: hostPayoutsRoute } = await import("@/app/api/host/payouts/route");
@@ -25,7 +23,6 @@ let fake: FakeProvider;
 let admin: Awaited<ReturnType<typeof seedSession>>;
 beforeEach(async () => {
   await truncateAll();
-  notify.mockClear();
   fake = new FakeProvider();
   setPaymentProvider(fake);
   admin = await seedSession(["RENTER", "ADMIN"]);
@@ -266,11 +263,11 @@ describe("mark-paid and mark-failed", () => {
     expect((await testDb.hostPayout.findUniqueOrThrow({ where: { id: p.id } })).status).toBe(
       "FAILED",
     );
-    const notified = notify.mock.calls.map((c) => [c[0], c[1]]);
+    const notified = await testDb.notification.findMany({ select: { userId: true, type: true } });
     expect(notified).toEqual(
       expect.arrayContaining([
-        [host.user.id, "PAYOUT_FAILED"],
-        [admin.user.id, "PAYOUT_FAILED"],
+        { userId: host.user.id, type: "PAYOUT_FAILED_HOST" },
+        { userId: admin.user.id, type: "PAYOUT_FAILED_ADMIN" },
       ]),
     );
     expect((await earnings(host.cookie)).payable.paise).toBe(180_000);
