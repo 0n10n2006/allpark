@@ -21,12 +21,15 @@ export async function signEvidenceUpload(user: CurrentUser, bookingId: string) {
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/** A delivery URL of our own Cloudinary upload directly in `folder` (not /image/fetch/<remote>). */
+/**
+ * A delivery URL of our own Cloudinary upload directly in `folder` (not /image/fetch/<remote>).
+ * Upload responses carry an extension; photoUrl() URLs have none but a `?_a=` query.
+ */
 export function isOurUploadUrl(url: string, folder: string) {
   const cloud = process.env.CLOUDINARY_CLOUD_NAME;
   if (!cloud) return false;
   return new RegExp(
-    `^https://res\\.cloudinary\\.com/${esc(cloud)}/image/upload/(?:v\\d+/)?${esc(folder)}/[A-Za-z0-9_-]+\\.(?:jpg|png|webp)$`,
+    `^https://res\\.cloudinary\\.com/${esc(cloud)}/image/upload/(?:v\\d+/)?${esc(folder)}/[A-Za-z0-9_-]+(?:\\.(?:jpg|png|webp))?(?:\\?[\\w=&.-]*)?$`,
   ).test(url);
 }
 

@@ -68,6 +68,8 @@ describe("isOurEvidenceUrl", () => {
     const base = "https://res.cloudinary.com/demo/image/upload";
     expect(isOurEvidenceUrl(`${base}/v17/incidents/${id}/a_1.jpg`, id)).toBe(true);
     expect(isOurEvidenceUrl(`${base}/disputes/${id}/a.png`, id)).toBe(true);
+    // photoUrl()-style delivery URL: no extension, analytics query.
+    expect(isOurEvidenceUrl(`${base}/v1/incidents/${id}/abc?_a=BAMAROZY0`, id)).toBe(true);
     for (const bad of [
       `${base}/incidents/${randomUUID()}/a.jpg`,
       `https://res.cloudinary.com/other/image/upload/incidents/${id}/a.jpg`,

@@ -478,7 +478,7 @@ describe("incidents", () => {
   test("host evidence updates the system-opened incident and notifies the renter; support resolves it", async () => {
     const s = await seed({ start: -120, end: -11, status: "GRACE_PERIOD", checkedIn: true });
     await sessions.graceExpired(graceJob(s.booking));
-    const url = `https://res.cloudinary.com/${cloud}/image/upload/v1/listings/${s.listing.id}/${randomUUID()}.jpg`;
+    const url = `https://res.cloudinary.com/${cloud}/image/upload/v1/listings/${s.listing.id}/${randomUUID()}?_a=BAMAROZY0`;
     const res = await post(incidentRoute, "incidents", s.id, s.host.cookie, {
       kind: "OVERSTAY",
       note: "Car still in bay",

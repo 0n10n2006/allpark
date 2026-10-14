@@ -489,10 +489,11 @@ export async function handleMonthlyExpire(agreementId: string, termEndAt: string
 /** Job at termEnd: CONFIRMED/ACTIVE → COMPLETED, audited as system. Anything else is left alone. */
 export async function handleCloseTerm(bookingId: string) {
   await db.$transaction(async (tx) => {
-    const [b] = await tx.$queryRaw<{ status: string; rentalType: string; endAt: Date }[]>`
-      SELECT status::text, "rentalType"::text, "endAt" FROM "Booking"
+    // Database clock, like claimDue: a worker clock running behind would skip the close for good.
+    const [b] = await tx.$queryRaw<{ status: string; rentalType: string; ended: boolean }[]>`
+      SELECT status::text, "rentalType"::text, "endAt" <= now() AS ended FROM "Booking"
       WHERE id = ${bookingId}::uuid FOR UPDATE`;
-    if (!b || b.rentalType !== "MONTHLY" || b.endAt > new Date()) return;
+    if (!b || b.rentalType !== "MONTHLY" || !b.ended) return;
     if (b.status !== "CONFIRMED" && b.status !== "ACTIVE") return;
     await transition(tx, bookingId, "COMPLETED", null, "monthly_term_ended");
   });

@@ -7,7 +7,8 @@ vi.mock("@/server/db", async () => ({ db: (await import("../setup/db")).testDb }
 
 const { POST: cancelRoute } = await import("@/app/api/bookings/[id]/cancel/route");
 const { applyRefundOutcome } = await import("@/server/payments/refunds");
-const { params, seedBooking } = await import("./fixtures");
+const { HOUR, params, seedBooking } = await import("./fixtures");
+const { seedQuote } = await import("../booking/fixtures");
 
 beforeEach(() => truncateAll());
 afterAll(() => testDb.$disconnect());
@@ -157,9 +158,17 @@ describe("POST /api/bookings/:id/cancel", () => {
 describe("bookings with a paid extension", () => {
   async function extended(opts: Parameters<typeof seedBooking>[0]) {
     const s = await seedBooking(opts);
+    const extQuote = await seedQuote({
+      listingId: s.listing.id,
+      renterId: s.renter.user.id,
+      vehicleId: null,
+      startAt: s.booking.endAt,
+      endAt: new Date(s.booking.endAt.getTime() + HOUR),
+    });
     const ext = await testDb.payment.create({
       data: {
         bookingId: s.booking.id,
+        extensionQuoteId: extQuote.id,
         providerOrderId: `order_${randomUUID()}`,
         providerPaymentId: `pay_${randomUUID()}`,
         amountPaise: 50_000,
