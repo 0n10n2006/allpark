@@ -153,3 +153,52 @@ describe("POST /api/bookings/:id/cancel", () => {
     ).toBe("CANCELLED");
   });
 });
+
+describe("bookings with a paid extension", () => {
+  async function extended(opts: Parameters<typeof seedBooking>[0]) {
+    const s = await seedBooking(opts);
+    const ext = await testDb.payment.create({
+      data: {
+        bookingId: s.booking.id,
+        providerOrderId: `order_${randomUUID()}`,
+        providerPaymentId: `pay_${randomUUID()}`,
+        amountPaise: 50_000,
+        status: "SUCCEEDED",
+        createdAt: new Date(Date.now() + 1000),
+      },
+    });
+    return { ...s, ext };
+  }
+  const split = async (bookingId: string) =>
+    Object.fromEntries((await refundsOf(bookingId)).map((r) => [r.paymentId, r.amountPaise]));
+
+  test("full refund before start is split per payment, each within its own capture", async () => {
+    const { booking, renter, payment, ext } = await extended({ startInHours: 5 });
+    expect((await cancel(renter.cookie, booking.id)).status).toBe(200);
+    expect(await split(booking.id)).toEqual({ [payment!.id]: 100_000, [ext.id]: 50_000 });
+  });
+
+  test("a partial tier is computed on everything paid and spills over in payment order", async () => {
+    // DAILY 10 h before start: 50% of ₹1,500 = ₹750; the original has ₹600 left after a prior refund.
+    const { booking, renter, payment, ext } = await extended({
+      rentalType: "DAILY",
+      startInHours: 10,
+    });
+    await testDb.refund.create({
+      data: {
+        paymentId: payment!.id,
+        amountPaise: 40_000,
+        reason: "earlier",
+        idempotencyKey: randomUUID(),
+        status: "SUCCEEDED",
+      },
+    });
+    expect((await cancel(renter.cookie, booking.id)).status).toBe(200);
+    const rows = await refundsOf(booking.id);
+    const fromCancel = rows.filter((r) => r.reason === "renter_cancellation");
+    expect(Object.fromEntries(fromCancel.map((r) => [r.paymentId, r.amountPaise]))).toEqual({
+      [payment!.id]: 60_000,
+      [ext.id]: 15_000,
+    });
+  });
+});
