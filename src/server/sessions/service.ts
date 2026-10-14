@@ -610,8 +610,7 @@ export async function reportIncident(
     });
     return { incident, auditId: audit.id };
   });
-  // ponytail: no incident template yet (FR-12); GRACE_EXPIRED_RENTER asks the renter to leave or contact support.
-  await notify(b.renterId, "GRACE_EXPIRED_RENTER", payload(b), {
+  await notify(b.renterId, "INCIDENT_REPORTED", payload(b), {
     idempotencyKey: `booking:${id}:incident:${auditId}`,
   });
   return incidentDto(incident);

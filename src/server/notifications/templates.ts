@@ -119,6 +119,16 @@ export const templates = {
       `/host/bookings/${p.bookingId}`,
     ),
   ),
+  INCIDENT_REPORTED: template("transactional", booking, (p) =>
+    make(
+      {
+        title: "Host reported a problem",
+        body: `The host reported a problem with your parking at ${p.listingTitle}. Support will review it.`,
+        extra: "If you are still parked, please leave or extend your booking.",
+      },
+      bookingLink(p),
+    ),
+  ),
   EXTENSION_REQUESTED: template("transactional", booking.extend({ newEndAt: Iso }), (p) =>
     make(
       {

@@ -496,6 +496,7 @@ describe("incidents", () => {
       await testDb.notification.count({
         where: {
           userId: s.renter.user.id,
+          type: "INCIDENT_REPORTED",
           idempotencyKey: { startsWith: `booking:${s.id}:incident:` },
         },
       }),
