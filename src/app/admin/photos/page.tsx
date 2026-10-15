@@ -151,7 +151,6 @@ function PhotosContent() {
               onValueChange={(val) => {
                 if (val) {
                   setModerationStatus(val);
-                  setCursorHistory([]);
                 }
               }}
             >

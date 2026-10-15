@@ -264,6 +264,18 @@ export const AdminModeratePhotoBody = z.strictObject({
 });
 export type AdminModeratePhotoBody = z.infer<typeof AdminModeratePhotoBody>;
 
+/** POST /api/admin/jobs/:id/retry */
+export const AdminRetryJobBody = z.strictObject({
+  reason: AdminReason,
+});
+export type AdminRetryJobBody = z.infer<typeof AdminRetryJobBody>;
+
+/** POST /api/admin/notifications/:id/retry */
+export const AdminRetryNotificationBody = z.strictObject({
+  reason: AdminReason,
+});
+export type AdminRetryNotificationBody = z.infer<typeof AdminRetryNotificationBody>;
+
 /** POST /api/admin/disputes/:id/resolve */
 export const AdminResolveDisputeBody = z.strictObject({
   outcome: z.enum(["UNDER_REVIEW", "RESOLVED", "REJECTED"]),

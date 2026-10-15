@@ -16,6 +16,8 @@ const { GET: getReviews } = await import("@/app/api/admin/reviews/route");
 const { GET: getStats } = await import("@/app/api/admin/stats/route");
 const { GET: getPhotos } = await import("@/app/api/admin/photos/route");
 const { POST: moderatePhoto } = await import("@/app/api/admin/photos/[id]/moderate/route");
+const { POST: retryJob } = await import("@/app/api/admin/jobs/[id]/retry/route");
+const { POST: retryNotification } = await import("@/app/api/admin/notifications/[id]/retry/route");
 
 beforeEach(() => truncateAll());
 afterAll(() => testDb.$disconnect());
@@ -95,6 +97,26 @@ describe("Admin APIs (T4.6 / FR-13)", () => {
       at(targetId),
     );
     expect(resModeratePhoto.status).toBe(403);
+
+    const resRetryJob = await retryJob(
+      req(`/api/admin/jobs/${targetId}/retry`, {
+        method: "POST",
+        cookie: renter.cookie,
+        body: { reason: "Need to retry" },
+      }),
+      at(targetId),
+    );
+    expect(resRetryJob.status).toBe(403);
+
+    const resRetryNotif = await retryNotification(
+      req(`/api/admin/notifications/${targetId}/retry`, {
+        method: "POST",
+        cookie: renter.cookie,
+        body: { reason: "Need to retry" },
+      }),
+      at(targetId),
+    );
+    expect(resRetryNotif.status).toBe(403);
   });
 
   test("dashboard stats returns open counts", async () => {
@@ -517,5 +539,176 @@ describe("Admin APIs (T4.6 / FR-13)", () => {
 
     const dbPhotoAfterApprove = await testDb.listingPhoto.findUnique({ where: { id: photo.id } });
     expect(dbPhotoAfterApprove?.moderationStatus).toBe("APPROVED");
+  });
+
+  test("retry dead job resets status to PENDING, attempts to 0, runAt now, and creates audit log", async () => {
+    const admin = await seedSession(["ADMIN"]);
+
+    const job = await testDb.job.create({
+      data: {
+        type: "bookings.expireHolds",
+        payload: {},
+        status: "DEAD",
+        attempts: 5,
+        maxAttempts: 5,
+        lastError: "Connection timeout after 5 attempts",
+        runAt: new Date(Date.now() - 3600000),
+      },
+    });
+
+    const res = await retryJob(
+      req(`/api/admin/jobs/${job.id}/retry`, {
+        method: "POST",
+        cookie: admin.cookie,
+        body: { reason: "Database pool recovered, retrying dead hold expiry job" },
+      }),
+      at(job.id),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.auditLogId).toBeDefined();
+
+    const dbJob = await testDb.job.findUnique({ where: { id: job.id } });
+    expect(dbJob?.status).toBe("PENDING");
+    expect(dbJob?.attempts).toBe(0);
+    expect(dbJob?.lastError).toBeNull();
+    expect(dbJob?.lockedAt).toBeNull();
+    expect(dbJob?.lockedBy).toBeNull();
+    expect(dbJob?.runAt.getTime()).toBeGreaterThan(Date.now() - 10000);
+
+    const audit = await testDb.auditLog.findFirst({
+      where: {
+        action: "job.retry",
+        targetId: job.id,
+      },
+    });
+    expect(audit).not.toBeNull();
+    expect(audit?.actorId).toBe(admin.user.id);
+    expect(audit?.reason).toBe("Database pool recovered, retrying dead hold expiry job");
+    expect(audit?.metadata).toMatchObject({
+      previousStatus: "DEAD",
+      type: "bookings.expireHolds",
+    });
+  });
+
+  test("retry non-dead job returns 409 conflict", async () => {
+    const admin = await seedSession(["ADMIN"]);
+
+    const job = await testDb.job.create({
+      data: {
+        type: "system.noop",
+        payload: {},
+        status: "PENDING",
+        attempts: 0,
+        maxAttempts: 5,
+      },
+    });
+
+    const res = await retryJob(
+      req(`/api/admin/jobs/${job.id}/retry`, {
+        method: "POST",
+        cookie: admin.cookie,
+        body: { reason: "Attempting retry on pending job" },
+      }),
+      at(job.id),
+    );
+    expect(res.status).toBe(409);
+  });
+
+  test("retry failed notification resets status to PENDING, re-enqueues delivery job, and creates audit log", async () => {
+    const admin = await seedSession(["ADMIN"]);
+    const user = await seedSession(["RENTER"]);
+
+    const notification = await testDb.notification.create({
+      data: {
+        userId: user.user.id,
+        type: "booking.confirmed",
+        channel: "EMAIL",
+        payload: {},
+        status: "FAILED",
+        attempts: 5,
+        lastError: "Email send failed: 550 Mailbox unavailable",
+        idempotencyKey: "notif-failed-123",
+      },
+    });
+
+    // Also simulate existing dead delivery job
+    const deliveryKey = `notification:${notification.id}`;
+    await testDb.job.create({
+      data: {
+        type: "notifications.deliver",
+        payload: { notificationId: notification.id },
+        idempotencyKey: deliveryKey,
+        status: "DEAD",
+        attempts: 5,
+        maxAttempts: 5,
+        lastError: "Email send failed",
+      },
+    });
+
+    const res = await retryNotification(
+      req(`/api/admin/notifications/${notification.id}/retry`, {
+        method: "POST",
+        cookie: admin.cookie,
+        body: { reason: "User updated email address and provider issue resolved" },
+      }),
+      at(notification.id),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+
+    // Notification reset
+    const dbNotif = await testDb.notification.findUnique({ where: { id: notification.id } });
+    expect(dbNotif?.status).toBe("PENDING");
+    expect(dbNotif?.attempts).toBe(0);
+    expect(dbNotif?.lastError).toBeNull();
+
+    // Delivery job reset
+    const dbJob = await testDb.job.findUnique({ where: { idempotencyKey: deliveryKey } });
+    expect(dbJob?.status).toBe("PENDING");
+    expect(dbJob?.attempts).toBe(0);
+    expect(dbJob?.lastError).toBeNull();
+    expect(dbJob?.lockedAt).toBeNull();
+
+    // Audit log
+    const audit = await testDb.auditLog.findFirst({
+      where: {
+        action: "notification.retry",
+        targetId: notification.id,
+      },
+    });
+    expect(audit).not.toBeNull();
+    expect(audit?.actorId).toBe(admin.user.id);
+    expect(audit?.reason).toBe("User updated email address and provider issue resolved");
+  });
+
+  test("retry non-failed notification returns 409 conflict", async () => {
+    const admin = await seedSession(["ADMIN"]);
+    const user = await seedSession(["RENTER"]);
+
+    const notification = await testDb.notification.create({
+      data: {
+        userId: user.user.id,
+        type: "booking.confirmed",
+        channel: "EMAIL",
+        payload: {},
+        status: "SENT",
+        sentAt: new Date(),
+        attempts: 1,
+        idempotencyKey: "notif-sent-123",
+      },
+    });
+
+    const res = await retryNotification(
+      req(`/api/admin/notifications/${notification.id}/retry`, {
+        method: "POST",
+        cookie: admin.cookie,
+        body: { reason: "Attempting retry on already sent notification" },
+      }),
+      at(notification.id),
+    );
+    expect(res.status).toBe(409);
   });
 });

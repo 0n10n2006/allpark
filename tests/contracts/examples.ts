@@ -680,6 +680,16 @@ export const examples: Record<
     body: { decision: "APPROVED", reason },
     response: adminAction,
   },
+  "POST /api/admin/jobs/:id/retry": {
+    params,
+    body: { reason },
+    response: adminAction,
+  },
+  "POST /api/admin/notifications/:id/retry": {
+    params,
+    body: { reason },
+    response: adminAction,
+  },
   "GET /api/admin/payouts": {
     query: { payoutStatus: "PENDING" },
     response: {
