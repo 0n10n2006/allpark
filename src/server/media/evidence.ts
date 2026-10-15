@@ -25,11 +25,19 @@ const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  * A delivery URL of our own Cloudinary upload directly in `folder` (not /image/fetch/<remote>).
  * Upload responses carry an extension; photoUrl() URLs have none but a `?_a=` query.
  */
-export function isOurUploadUrl(url: string, folder: string) {
+export const isOurUploadUrl = (url: string, folder: string) => matchesUpload(url, esc(folder));
+
+const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+
+/** Report evidence (L1): one of our listing photos or booking evidence uploads, nothing else. */
+export const isOurReportEvidenceUrl = (url: string) =>
+  matchesUpload(url, `(?:listings|incidents|disputes)/${UUID}`);
+
+function matchesUpload(url: string, folderPattern: string) {
   const cloud = process.env.CLOUDINARY_CLOUD_NAME;
   if (!cloud) return false;
   return new RegExp(
-    `^https://res\\.cloudinary\\.com/${esc(cloud)}/image/upload/(?:v\\d+/)?${esc(folder)}/[A-Za-z0-9_-]+(?:\\.(?:jpg|png|webp))?(?:\\?[\\w=&.-]*)?$`,
+    `^https://res\\.cloudinary\\.com/${esc(cloud)}/image/upload/(?:v\\d+/)?${folderPattern}/[A-Za-z0-9_-]+(?:\\.(?:jpg|png|webp))?(?:\\?[\\w=&.-]*)?$`,
   ).test(url);
 }
 
