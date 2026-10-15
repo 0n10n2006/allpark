@@ -570,6 +570,23 @@ export const endpoints: Endpoint[] = [
   },
   {
     method: "GET",
+    path: "/api/admin/photos",
+    auth: "admin",
+    task: "T5.6",
+    query: admin.AdminListPhotosQuery,
+    response: admin.AdminListPhotosResponse,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/photos/:id/moderate",
+    auth: "admin",
+    task: "T5.6",
+    params: IdParams,
+    body: admin.AdminModeratePhotoBody,
+    response: AdminActionResponse,
+  },
+  {
+    method: "GET",
     path: "/api/admin/payouts",
     auth: "admin",
     task: "T4.5",

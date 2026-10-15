@@ -140,6 +140,7 @@ describe("GET /api/bookings/:id", () => {
     const extQuote = await seedQuote({
       listingId: listing.id,
       renterId: renter.user.id,
+      vehicleId: null,
       startAt: ist("12:00"),
       endAt: ist("13:00"),
     });

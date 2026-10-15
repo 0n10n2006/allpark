@@ -13,6 +13,7 @@ import {
   MessageSquare,
   IndianRupee,
   Bell,
+  Camera,
 } from "lucide-react";
 
 type AdminNavItem = {
@@ -26,6 +27,7 @@ export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/listings", label: "Listings", icon: MapPin },
+  { href: "/admin/photos", label: "Photos", icon: Camera },
   { href: "/admin/bookings", label: "Bookings", icon: CalendarDays },
   { href: "/admin/payments", label: "Payments", icon: CreditCard },
   { href: "/admin/disputes", label: "Disputes", icon: AlertTriangle },

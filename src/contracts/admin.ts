@@ -236,6 +236,34 @@ export const AdminModerateReviewBody = z.strictObject({
 });
 export type AdminModerateReviewBody = z.infer<typeof AdminModerateReviewBody>;
 
+export const AdminPhoto = z.object({
+  id: Uuid,
+  listingId: Uuid,
+  listingTitle: z.string(),
+  url: z.string(),
+  publicId: z.string().nullable(),
+  position: z.number().int(),
+  moderationStatus: z.enum(ModerationStatus),
+  createdAt: IsoDateTime,
+});
+export type AdminPhoto = z.infer<typeof AdminPhoto>;
+
+/** GET /api/admin/photos */
+export const AdminListPhotosQuery = PaginationQuery.extend({
+  status: z.enum(ModerationStatus).optional(),
+  listingId: Uuid.optional(),
+});
+export type AdminListPhotosQuery = z.infer<typeof AdminListPhotosQuery>;
+export const AdminListPhotosResponse = page(AdminPhoto);
+export type AdminListPhotosResponse = z.infer<typeof AdminListPhotosResponse>;
+
+/** POST /api/admin/photos/:id/moderate */
+export const AdminModeratePhotoBody = z.strictObject({
+  decision: z.enum(["APPROVED", "REJECTED"]),
+  reason: AdminReason,
+});
+export type AdminModeratePhotoBody = z.infer<typeof AdminModeratePhotoBody>;
+
 /** POST /api/admin/disputes/:id/resolve */
 export const AdminResolveDisputeBody = z.strictObject({
   outcome: z.enum(["UNDER_REVIEW", "RESOLVED", "REJECTED"]),

@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   Search,
@@ -420,9 +421,12 @@ function ListingsContent() {
                     <ImageIcon className="size-4 text-muted-foreground" aria-hidden="true" />
                     <span>Listing Photos ({selectedListing.photos.length})</span>
                   </div>
-                  <span className="text-[11px] text-muted-foreground italic">
-                    Photo moderation API: not provided upstream
-                  </span>
+                  <Link
+                    href={`/admin/photos?listingId=${selectedListing.id}`}
+                    className="text-xs text-primary underline min-h-11 inline-flex items-center"
+                  >
+                    Moderate photos
+                  </Link>
                 </div>
                 {selectedListing.photos.length === 0 ? (
                   <p className="text-xs text-muted-foreground">No photos uploaded for this listing.</p>

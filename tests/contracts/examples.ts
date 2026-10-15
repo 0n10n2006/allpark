@@ -657,6 +657,29 @@ export const examples: Record<
     body: { decision: "REJECTED", reason },
     response: adminAction,
   },
+  "GET /api/admin/photos": {
+    query: { status: "PENDING" },
+    response: {
+      items: [
+        {
+          id: ID,
+          listingId: ID2,
+          listingTitle: "Covered spot near FC Road",
+          url: "https://res.cloudinary.com/demo/image/upload/a.jpg",
+          publicId: "sample_public_id",
+          position: 0,
+          moderationStatus: "PENDING",
+          createdAt: T0,
+        },
+      ],
+      nextCursor: null,
+    },
+  },
+  "POST /api/admin/photos/:id/moderate": {
+    params,
+    body: { decision: "APPROVED", reason },
+    response: adminAction,
+  },
   "GET /api/admin/payouts": {
     query: { payoutStatus: "PENDING" },
     response: {
