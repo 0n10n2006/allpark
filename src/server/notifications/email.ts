@@ -41,6 +41,7 @@ let override: EmailSender | null = null;
 
 /** Tests inject a sender; pass null to restore the env-based default. */
 export function setEmailSender(sender: EmailSender | null) {
+  if (process.env.NODE_ENV !== "test") throw new Error("setEmailSender is test-only");
   override = sender;
 }
 
