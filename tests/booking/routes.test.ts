@@ -121,6 +121,62 @@ describe("GET /api/bookings/:id", () => {
     const asAdmin = BookingDetail.parse(await (await getBooking(admin.cookie, id)).json());
     expect(asAdmin.access).toBeNull();
   });
+
+  test("returns lineItems from quote and extensions with commission excluded", async () => {
+    const { listing, renter, quote } = await setup();
+    await testDb.priceQuote.update({
+      where: { id: quote.id },
+      data: {
+        lineItems: [
+          { code: "base", label: "2 hours × ₹50", kind: "charge", amount: { paise: 100_000, currency: "INR" } },
+          { code: "commission", label: "Commission (internal)", kind: "fee", amount: { paise: 10_000, currency: "INR" } },
+        ],
+      },
+    });
+    const { id } = await (await postHold(renter.cookie, quote.id)).json();
+    await testDb.booking.update({ where: { id }, data: { status: "CONFIRMED" } });
+
+    // Seed an extension quote and a succeeded payment for it
+    const extQuote = await seedQuote({
+      listingId: listing.id,
+      renterId: renter.user.id,
+      startAt: ist("12:00"),
+      endAt: ist("13:00"),
+    });
+    await testDb.priceQuote.update({
+      where: { id: extQuote.id },
+      data: {
+        lineItems: [
+          { code: "extension", label: "1 hour extension", kind: "charge", amount: { paise: 50_000, currency: "INR" } },
+        ],
+      },
+    });
+
+    await testDb.payment.create({
+      data: {
+        bookingId: id,
+        providerOrderId: "order_ext_1",
+        amountPaise: 5000,
+        currency: "INR",
+        status: "SUCCEEDED",
+        extensionQuoteId: extQuote.id,
+      },
+    });
+
+    const res = await getBooking(renter.cookie, id);
+    expect(res.status).toBe(200);
+    const detail = BookingDetail.parse(await res.json());
+
+    expect(detail.lineItems).toBeDefined();
+    expect(detail.lineItems!.length).toBeGreaterThanOrEqual(2);
+    // Every item has valid kind and amount, no commission
+    for (const item of detail.lineItems!) {
+      expect(item.code).not.toBe("commission");
+      expect((item as { kind?: string }).kind).not.toBe("commission");
+    }
+    const labels = detail.lineItems!.map((i) => i.label);
+    expect(labels.some((l) => l.includes("2 hours"))).toBe(true);
+  });
 });
 
 describe("GET /api/bookings", () => {
