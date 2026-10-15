@@ -29,6 +29,7 @@ import { audit } from "@/server/http/audit";
 import { HttpError } from "@/server/http/errors";
 import {
   setHostVerification,
+  setOwnerListingsBookable,
   suspendListing,
   toOwned,
 } from "@/server/listings/service";
@@ -229,6 +230,7 @@ export async function adminSuspendUser(
         data: { suspendedAt: new Date(), suspendedReason: reason },
       });
       await tx.session.deleteMany({ where: { userId } });
+      await setOwnerListingsBookable(tx, admin.id, userId, "owner_suspended", false);
       const log = await tx.auditLog.create({
         data: {
           actorId: admin.id,
@@ -244,6 +246,7 @@ export async function adminSuspendUser(
         where: { id: userId },
         data: { suspendedAt: null, suspendedReason: null },
       });
+      await setOwnerListingsBookable(tx, admin.id, userId, "owner_suspended", true);
       const log = await tx.auditLog.create({
         data: {
           actorId: admin.id,
@@ -698,4 +701,3 @@ export async function adminListReviews(
     nextCursor: rows.length > limit ? page.at(-1)!.id : null,
   };
 }
-

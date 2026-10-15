@@ -19,6 +19,73 @@ beforeEach(() => truncateAll());
 afterAll(() => testDb.$disconnect());
 
 const at = (id: string) => ({ params: Promise.resolve({ id }) });
+const { seedListing } = await import("../booking/fixtures");
+
+describe("M1: a suspended or unverified host's listings stop being bookable", () => {
+  const post = (
+    handler: typeof suspendUser,
+    path: string,
+    cookie: string,
+    id: string,
+    body: object,
+  ) => handler(req(path, { method: "POST", cookie, body }), at(id));
+  const statusOf = async (id: string) =>
+    (await testDb.listing.findUniqueOrThrow({ where: { id } })).status;
+
+  test("suspend moves PUBLISHED listings to SUSPENDED (audited); unsuspend restores only those", async () => {
+    const admin = await seedSession(["ADMIN"]);
+    const listing = await seedListing();
+    await testDb.user.update({
+      where: { id: listing.hostId },
+      data: { hostVerificationStatus: "VERIFIED" },
+    });
+    const manual = await seedListing({
+      hostId: listing.hostId,
+      status: "SUSPENDED",
+      suspendedReason: "spam",
+    });
+    const path = `/api/admin/users/${listing.hostId}/suspend`;
+    const off = await post(suspendUser, path, admin.cookie, listing.hostId, {
+      suspended: true,
+      reason: "Fraud",
+    });
+    expect(off.status).toBe(200);
+    expect(await testDb.listing.findUniqueOrThrow({ where: { id: listing.id } })).toMatchObject({
+      status: "SUSPENDED",
+      suspendedReason: "owner_suspended",
+    });
+    expect(
+      await testDb.auditLog.count({
+        where: { targetId: listing.id, action: "listing.suspend", reason: "owner_suspended" },
+      }),
+    ).toBe(1);
+    await post(suspendUser, path, admin.cookie, listing.hostId, {
+      suspended: false,
+      reason: "Appeal won",
+    });
+    expect(await statusOf(listing.id)).toBe("PUBLISHED");
+    expect(await statusOf(manual.id)).toBe("SUSPENDED");
+  });
+
+  test("REJECTED suspends the host's listings; VERIFIED again restores them", async () => {
+    const admin = await seedSession(["ADMIN"]);
+    const listing = await seedListing();
+    const path = `/api/admin/users/${listing.hostId}/verify-host`;
+    await post(verifyHost, path, admin.cookie, listing.hostId, {
+      decision: "REJECTED",
+      reason: "Bad documents",
+    });
+    expect(await testDb.listing.findUniqueOrThrow({ where: { id: listing.id } })).toMatchObject({
+      status: "SUSPENDED",
+      suspendedReason: "host_unverified",
+    });
+    await post(verifyHost, path, admin.cookie, listing.hostId, {
+      decision: "VERIFIED",
+      reason: "Documents ok",
+    });
+    expect(await statusOf(listing.id)).toBe("PUBLISHED");
+  });
+});
 
 describe("Admin APIs (T4.6 / FR-13)", () => {
   test("non-admin gets 403 on all admin routes", async () => {
