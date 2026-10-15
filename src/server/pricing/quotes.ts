@@ -84,8 +84,14 @@ export async function validateQuote(
 ): Promise<PriceQuote> {
   const invalid = (reason: string) => new HttpError("unprocessable", reason);
   if (!Uuid.safeParse(quoteId).success) throw invalid("Quote not found");
-  const quote = await db.priceQuote.findUnique({ where: { id: quoteId } });
-  if (!quote || quote.renterId !== renterId) throw invalid("Quote not found");
+  const quote = await db.priceQuote.findUnique({
+    where: { id: quoteId },
+    include: { extensionPayments: { select: { id: true }, take: 1 } },
+  });
+  // M3: an extension quote prices only the delta and is paid by its own Payment; it is
+  // never a standalone booking. Same message, so it doesn't reveal what the id is.
+  if (!quote || quote.renterId !== renterId || quote.extensionPayments.length)
+    throw invalid("Quote not found");
   if (quote.expiresAt.getTime() <= Date.now()) throw invalid("Quote expired");
   if (
     quote.listingId !== listingId ||
