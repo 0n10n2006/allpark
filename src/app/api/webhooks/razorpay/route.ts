@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { RazorpayWebhookBody } from "@/contracts";
 import { log } from "@/server/payments/log";
 import { getPaymentProvider, notConfigured } from "@/server/payments/provider";
@@ -29,7 +30,10 @@ export async function POST(req: Request) {
     return bad("Malformed webhook");
   }
   try {
-    await processWebhookEvent(eventId, parsed.data);
+    // L8: dedupe on the signed body, not the unsigned x-razorpay-event-id header, so a
+    // replayed body under a fresh header id is still a duplicate. Retries resend the same body.
+    const dedupeKey = `sha256:${createHash("sha256").update(raw).digest("hex")}`;
+    await processWebhookEvent(dedupeKey, parsed.data);
   } catch (e) {
     // 5xx makes Razorpay retry; the event wasn't recorded because its transaction rolled back.
     log("error", "webhook.error", { eventId, event: parsed.data.event, error: (e as Error).name });
