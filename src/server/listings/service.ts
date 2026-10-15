@@ -16,6 +16,7 @@ import { type CurrentUser, assertOwner, requireVerifiedHost } from "@/server/aut
 import { db } from "@/server/db";
 import { audit } from "@/server/http/audit";
 import { HttpError } from "@/server/http/errors";
+import { listingRatingSummary } from "@/server/reviews";
 import { listingFolder, photoUrl } from "./cloudinary";
 
 type Issue = { path: (string | number)[]; message: string };
@@ -130,12 +131,7 @@ function publicFields(l: ListingRow, rating: Rating, policy: ActivePolicy) {
 }
 
 async function ratingOf(listingId: string) {
-  const r = await db.review.aggregate({
-    where: { listingId, moderationStatus: "APPROVED" },
-    _avg: { rating: true },
-    _count: true,
-  });
-  return { average: r._avg.rating, count: r._count };
+  return (await listingRatingSummary([listingId])).get(listingId)!;
 }
 
 export type Rating = { average: number | null; count: number };

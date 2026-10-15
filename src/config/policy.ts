@@ -44,6 +44,8 @@ export const POLICY_DEFAULTS = {
   monthlyRenewalReminderDays: 7,
   unpaidGraceDays: 0,
   payoutMode: "MANUAL" as "MANUAL" | "AUTO",
+  /** Hours after completion before earnings are payable: time for a dispute or a late refund. */
+  payoutHoldbackHours: 24,
   cityBoundary: { minLat: 18.4, maxLat: 18.7, minLng: 73.7, maxLng: 74.05 },
 };
 

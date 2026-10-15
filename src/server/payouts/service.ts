@@ -12,9 +12,9 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { CurrentUser } from "@/server/auth/guards";
 import { db } from "@/server/db";
 import { HttpError } from "@/server/http/errors";
+import { notify } from "@/server/notifications";
 import { log } from "@/server/payments/log";
 import { bookingEarnings } from "./earnings";
-import { sendNotification } from "./notify";
 
 // FR-06 AC5/AC6, payoutMode MANUAL (plan §2): an admin creates a payout for a host's
 // payable bookings, pays them outside ParkShare, then records the bank/provider reference.
@@ -201,12 +201,22 @@ export async function markPayoutFailed(admin: CurrentUser, id: string, reason: s
     where: { roles: { has: "ADMIN" } },
     select: { id: true },
   });
-  for (const userId of new Set([r.hostId, ...admins.map((a) => a.id)]))
-    await sendNotification(
-      userId,
-      "PAYOUT_FAILED",
-      { payoutId: id, reason },
-      { idempotencyKey: `payout:${id}:failed:${userId}` },
+  await notify(
+    r.hostId,
+    "PAYOUT_FAILED_HOST",
+    { payoutId: id },
+    {
+      idempotencyKey: `payout:${id}:failed:host`,
+    },
+  );
+  for (const a of admins)
+    await notify(
+      a.id,
+      "PAYOUT_FAILED_ADMIN",
+      { payoutId: id },
+      {
+        idempotencyKey: `payout:${id}:failed:admin:${a.id}`,
+      },
     );
   log("warn", "payout.failed", { payoutId: id, hostId: r.hostId });
   return { ok: true as const, auditLogId: r.auditLogId };

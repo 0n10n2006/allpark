@@ -30,6 +30,22 @@ export async function refundablePayment(tx: Tx, bookingId: string) {
   return { payment, refundablePaise: payment.amountPaise - (_sum.amountPaise ?? 0) };
 }
 
+/** The booking's SUCCEEDED payments (original + paid extensions), oldest first, each with what is still refundable on it. */
+async function refundablePayments(tx: Tx, bookingId: string) {
+  const payments = await tx.payment.findMany({
+    where: { bookingId, status: "SUCCEEDED" },
+    include: { refunds: { where: { status: { not: "FAILED" } }, select: { amountPaise: true } } },
+    orderBy: { createdAt: "asc" },
+  });
+  return payments.map((p) => ({
+    id: p.id,
+    amountPaise: p.amountPaise,
+    refundablePaise: p.amountPaise - p.refunds.reduce((s, r) => s + r.amountPaise, 0),
+  }));
+}
+
+const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
+
 /**
  * POST /api/bookings/:id/cancel (FR-10). Renter: refund by the policy tier the booking was
  * quoted under. Host: full refund plus a host-cancellation audit record. The booking moves to
@@ -72,30 +88,35 @@ export async function cancelBooking(
   await db.$transaction(async (tx) => {
     await transition(tx, id, "CANCELLED", user.id, reason || kind);
     // A hold (PENDING_PAYMENT) has nothing captured to refund.
-    const paid = b.status === "PENDING_PAYMENT" ? null : await refundablePayment(tx, id);
-    const amountPaise = !paid
-      ? 0
-      : isRenter
-        ? Math.min(
-            paid.refundablePaise,
-            computeCancellationRefund({
-              policy,
-              policyKey: b.listing.cancellationPolicy,
-              rentalType: b.rentalType,
-              startAt: b.startAt,
-              now: new Date(),
-              paidPaise: paid.payment.amountPaise,
-            }).refundPaise,
-          )
-        : paid.refundablePaise;
-    if (paid && amountPaise > 0)
+    const paid = b.status === "PENDING_PAYMENT" ? [] : await refundablePayments(tx, id);
+    const refundable = sum(paid.map((p) => p.refundablePaise));
+    const amountPaise = isRenter
+      ? Math.min(
+          refundable,
+          computeCancellationRefund({
+            policy,
+            policyKey: b.listing.cancellationPolicy,
+            rentalType: b.rentalType,
+            startAt: b.startAt,
+            now: new Date(),
+            paidPaise: sum(paid.map((p) => p.amountPaise)),
+          }).refundPaise,
+        )
+      : refundable;
+    // One refund per payment (each capture refunds against itself), capped at what it has left.
+    let left = amountPaise;
+    for (const p of paid) {
+      const part = Math.min(left, p.refundablePaise);
+      if (part <= 0) continue;
       await createRefundTx(tx, {
-        paymentId: paid.payment.id,
-        amountPaise,
+        paymentId: p.id,
+        amountPaise: part,
         reason: kind,
         actorId: user.id,
-        idempotencyKey: `cancellation:${id}`,
+        idempotencyKey: `cancellation:${id}:${p.id}`,
       });
+      left -= part;
+    }
     if (kind === "host_cancellation")
       await tx.auditLog.create({
         data: {

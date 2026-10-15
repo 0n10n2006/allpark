@@ -20,9 +20,13 @@ export const listingFolder = (listingId: string) => `listings/${listingId}`;
  * client hint only (ponytail: enforce via an upload preset if abuse shows up).
  */
 export function signUpload(listingId: string) {
+  return signFolderUpload(listingFolder(listingId));
+}
+
+/** signUpload for any folder we own (booking evidence uses incidents/<bookingId>). */
+export function signFolderUpload(folder: string) {
   const c = config();
   if (!c) return null;
-  const folder = listingFolder(listingId);
   const publicId = `${folder}/${randomUUID()}`;
   const timestamp = Math.floor(Date.now() / 1000);
   const signature = cloudinary.utils.api_sign_request(

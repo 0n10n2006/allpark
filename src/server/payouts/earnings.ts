@@ -7,13 +7,6 @@ import { db } from "@/server/db";
 
 type Tx = Prisma.TransactionClient;
 
-/**
- * Hours after completion before a booking's earnings become payable. They leave time for
- * a dispute or a late refund.
- * TODO(coordinator): move to POLICY_DEFAULTS (src/config/policy.ts) as payoutHoldbackHours.
- */
-export const PAYOUT_HOLDBACK_HOURS = 24;
-
 export type BookingEarning = {
   bookingId: string;
   hostId: string;
@@ -53,6 +46,7 @@ type Filter = { hostId?: string; bookingIds?: string[]; from?: Date; to?: Date }
  * ponytail: no pagination; a host with thousands of bookings needs a paged list.
  */
 export async function bookingEarnings(f: Filter, tx: Tx = db): Promise<BookingEarning[]> {
+  const { payoutHoldbackHours } = await getActivePolicy();
   const where = [
     Prisma.sql`TRUE`,
     f.hostId ? Prisma.sql`l."hostId" = ${f.hostId}::uuid` : null,
@@ -79,7 +73,7 @@ export async function bookingEarnings(f: Filter, tx: Tx = db): Promise<BookingEa
     SELECT b.id AS "bookingId", l."hostId", l.title AS "listingTitle", b."startAt", b."endAt",
       b.status::text AS "bookingStatus", b."hostPayoutId", hp.status::text AS "payoutStatus",
       (b.status = 'COMPLETED' AND COALESCE(b."checkedOutAt", b."endAt")
-        <= now() - make_interval(hours => ${PAYOUT_HOLDBACK_HOURS})) AS "pastHoldback",
+        <= now() - make_interval(hours => ${payoutHoldbackHours})) AS "pastHoldback",
       EXISTS (SELECT 1 FROM "Refund" r JOIN "Payment" p ON p.id = r."paymentId"
         WHERE p."bookingId" = b.id AND p.status = 'SUCCEEDED'
           AND r.status IN ('PENDING', 'PROCESSING')) AS "refundInFlight",

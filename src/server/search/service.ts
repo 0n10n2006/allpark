@@ -10,6 +10,7 @@ import { BLOCKING_STATUSES, isWithinSchedule, monthlyTermEnd } from "@/server/av
 import { db } from "@/server/db";
 import { HttpError } from "@/server/http/errors";
 import { priceFor } from "@/server/pricing/calc";
+import { listingRatingSummary } from "@/server/reviews";
 
 // FR-03 search. One SQL query per batch does the area, filters, and the bulk booking
 // conflict check; the schedule check (weekly hours, exceptions, minimum duration) then
@@ -272,24 +273,16 @@ async function toCards(
   policy: Awaited<ReturnType<typeof getActivePolicy>>,
 ): Promise<ListingCard[]> {
   const ids = rows.map((r) => r.id);
-  const [photos, ratings] = await Promise.all([
+  const [photos, ratingOf] = await Promise.all([
     db.listingPhoto.findMany({
       where: { listingId: { in: ids }, moderationStatus: { not: "REJECTED" } },
       orderBy: [{ listingId: "asc" }, { position: "asc" }, { createdAt: "asc" }],
       distinct: ["listingId"],
       select: { listingId: true, url: true },
     }),
-    db.review.groupBy({
-      by: ["listingId"],
-      where: { listingId: { in: ids }, moderationStatus: "APPROVED" },
-      _avg: { rating: true },
-      _count: true,
-    }),
+    listingRatingSummary(ids),
   ]);
   const photoOf = new Map(photos.map((p) => [p.listingId, p.url]));
-  const ratingOf = new Map(
-    ratings.map((r) => [r.listingId, { average: r._avg.rating, count: r._count }]),
-  );
   return rows.map((r) => {
     // ponytail: the price sort uses the unit price; for WEEKLY intervals with leftover
     // days the interval total can order slightly differently. Sort in SQL by total if it matters.

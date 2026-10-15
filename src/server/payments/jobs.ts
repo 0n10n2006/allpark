@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { registerJob } from "@/server/jobs/registry";
-import { processRefund } from "./refunds";
+import { processRefund, reconcileRefunds } from "./refunds";
 import { reconcilePayments, scheduleReconcile } from "./service";
 
 // Literal types, not the exported constants: this module is reached through the
@@ -12,4 +12,5 @@ registerJob("payments.processRefund", z.object({ refundId: z.uuid() }), ({ refun
 registerJob("payments.reconcile", z.object({}).passthrough(), async () => {
   await scheduleReconcile(new Date());
   await reconcilePayments();
+  await reconcileRefunds();
 });

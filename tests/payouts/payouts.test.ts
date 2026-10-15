@@ -5,8 +5,6 @@ import { noParams, req, seedSession } from "../http/helpers";
 import { FakeProvider } from "../payments/fake-provider";
 
 vi.mock("@/server/db", async () => ({ db: (await import("../setup/db")).testDb }));
-const notify = vi.hoisted(() => vi.fn());
-vi.mock("@/server/payouts/notify", () => ({ sendNotification: notify }));
 
 const { GET: earningsRoute } = await import("@/app/api/host/earnings/route");
 const { GET: hostPayoutsRoute } = await import("@/app/api/host/payouts/route");
@@ -25,7 +23,6 @@ let fake: FakeProvider;
 let admin: Awaited<ReturnType<typeof seedSession>>;
 beforeEach(async () => {
   await truncateAll();
-  notify.mockClear();
   fake = new FakeProvider();
   setPaymentProvider(fake);
   admin = await seedSession(["RENTER", "ADMIN"]);
@@ -204,6 +201,22 @@ describe("payout creation", () => {
     expect(await testDb.hostPayout.count()).toBe(0);
   });
 
+  test("the hold-back comes from the active policy (payoutHoldbackHours)", async () => {
+    const { POLICY_DEFAULTS } = await import("@/config/policy");
+    await testDb.policyVersion.create({
+      data: {
+        version: 2,
+        policy: { ...POLICY_DEFAULTS, payoutHoldbackHours: 72 },
+        effectiveAt: new Date(0),
+      },
+    });
+    const { host, listing } = await hostWithListing();
+    const twoDaysAgo = await seedCompleted(listing.id, 7);
+    expect((await createPayout(host.user.id, [twoDaysAgo])).status).toBe(409);
+    const fourDaysAgo = await seedCompleted(listing.id, 8, 96 * HOUR);
+    expect((await createPayout(host.user.id, [fourDaysAgo])).status).toBe(201);
+  });
+
   test("the same Idempotency-Key replays instead of creating a second payout", async () => {
     const { host, listing } = await hostWithListing();
     const id = await seedCompleted(listing.id, 7);
@@ -266,11 +279,11 @@ describe("mark-paid and mark-failed", () => {
     expect((await testDb.hostPayout.findUniqueOrThrow({ where: { id: p.id } })).status).toBe(
       "FAILED",
     );
-    const notified = notify.mock.calls.map((c) => [c[0], c[1]]);
+    const notified = await testDb.notification.findMany({ select: { userId: true, type: true } });
     expect(notified).toEqual(
       expect.arrayContaining([
-        [host.user.id, "PAYOUT_FAILED"],
-        [admin.user.id, "PAYOUT_FAILED"],
+        { userId: host.user.id, type: "PAYOUT_FAILED_HOST" },
+        { userId: admin.user.id, type: "PAYOUT_FAILED_ADMIN" },
       ]),
     );
     expect((await earnings(host.cookie)).payable.paise).toBe(180_000);

@@ -7,8 +7,8 @@ import { db } from "@/server/db";
 import { HttpError } from "@/server/http/errors";
 import { enqueue } from "@/server/jobs";
 import { onMonthlyConfirmed } from "@/server/monthly/service";
+import { notify } from "@/server/notifications";
 import { log } from "./log";
-import { sendNotification } from "./notify";
 import { sessionHooks } from "./session-hooks";
 import { getPaymentProvider, type PaymentProvider, type ProviderPayment } from "./provider";
 import { applyRefundOutcome, createRefundTx } from "./refunds";
@@ -396,11 +396,20 @@ async function afterSettle(r: SettleResult) {
     await sessionHooks.extensionSettled?.(r.bookingId, r.extension.quoteId, r.extension.applied);
   if (!r.confirmed || !r.bookingId) return;
   await sessionHooks.confirmed?.(r.bookingId);
-  const payload = { bookingId: r.bookingId };
-  await sendNotification(r.confirmed.renterId, "BOOKING_CONFIRMED_RENTER", payload, {
+  const b = await db.booking.findUniqueOrThrow({
+    where: { id: r.bookingId },
+    select: { startAt: true, endAt: true, listing: { select: { title: true } } },
+  });
+  const payload = {
+    bookingId: r.bookingId,
+    listingTitle: b.listing.title,
+    startAt: b.startAt.toISOString(),
+    endAt: b.endAt.toISOString(),
+  };
+  await notify(r.confirmed.renterId, "BOOKING_CONFIRMED_RENTER", payload, {
     idempotencyKey: `booking:${r.bookingId}:confirmed:renter`,
   });
-  await sendNotification(r.confirmed.hostId, "BOOKING_CONFIRMED_HOST", payload, {
+  await notify(r.confirmed.hostId, "BOOKING_CONFIRMED_HOST", payload, {
     idempotencyKey: `booking:${r.bookingId}:confirmed:host`,
   });
 }

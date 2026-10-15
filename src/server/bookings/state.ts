@@ -5,7 +5,8 @@ import { errorCode, HttpError } from "@/server/http/errors";
 export const TRANSITIONS: Record<BookingStatus, readonly BookingStatus[]> = {
   PENDING_PAYMENT: ["CONFIRMED", "EXPIRED", "PAYMENT_FAILED", "CANCELLED"],
   // CONFIRMED → GRACE_PERIOD: never checked in by endAt (no-show or unconfirmed; no penalty).
-  CONFIRMED: ["ACTIVE", "GRACE_PERIOD", "CANCELLED", "DISPUTED"],
+  // CONFIRMED → COMPLETED: monthly term end only (monthly.closeTerm; terms never check in).
+  CONFIRMED: ["ACTIVE", "GRACE_PERIOD", "COMPLETED", "CANCELLED", "DISPUTED"],
   ACTIVE: ["GRACE_PERIOD", "COMPLETED", "DISPUTED"],
   // GRACE_PERIOD → ACTIVE: only a paid extension moving endAt back into the future.
   GRACE_PERIOD: ["ACTIVE", "COMPLETED", "OVERSTAY", "DISPUTED"],

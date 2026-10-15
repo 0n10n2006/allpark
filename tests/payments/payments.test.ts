@@ -11,7 +11,7 @@ const { POST: orderRoute } = await import("@/app/api/payments/order/route");
 const { POST: confirmRoute } = await import("@/app/api/bookings/[id]/confirm-payment/route");
 const { POST: webhookRoute } = await import("@/app/api/webhooks/razorpay/route");
 const { setPaymentProvider } = await import("@/server/payments/provider");
-const { createRefund } = await import("@/server/payments/refunds");
+const { createRefund, reconcileRefunds } = await import("@/server/payments/refunds");
 const { reconcilePayments } = await import("@/server/payments/service");
 const { runOnce } = await import("@/server/jobs");
 const { MIN, ist, seedListing, seedQuote, seedVehicle } = await import("../booking/fixtures");
@@ -389,6 +389,33 @@ describe("refunds", () => {
     );
     expect(sum(await ledger(bookingId), "REFUND")).toBe(30_000);
   });
+
+  test("reconcile settles stale refunds from the provider once (lost refund webhooks)", async () => {
+    const { bookingId, payment } = await capturedPayment();
+    const make = (amountPaise: number) =>
+      createRefund({ paymentId: payment.id, amountPaise, reason: "x", actorId: null });
+    const [ok, bad, slow] = [await make(30_000), await make(20_000), await make(10_000)];
+    await runOnce("test-worker");
+    const providerId = async (id: string) =>
+      (await testDb.refund.findUniqueOrThrow({ where: { id } })).providerRefundId!;
+    fake.refundStatus.set(await providerId(ok.id), "processed");
+    fake.refundStatus.set(await providerId(bad.id), "failed");
+    // Too fresh to reconcile yet.
+    expect(await reconcileRefunds(fake)).toMatchObject({ checked: 0 });
+
+    await testDb.refund.updateMany({ data: { createdAt: new Date(Date.now() - 31 * MIN) } });
+    expect(await reconcileRefunds(fake)).toEqual({ checked: 3, settled: 2 });
+    expect(await reconcileRefunds(fake)).toEqual({ checked: 1, settled: 0 });
+    const statusOf = async (id: string) =>
+      (await testDb.refund.findUniqueOrThrow({ where: { id } })).status;
+    expect([await statusOf(ok.id), await statusOf(bad.id), await statusOf(slow.id)]).toEqual([
+      "SUCCEEDED",
+      "FAILED",
+      "PROCESSING",
+    ]);
+    expect(sum(await ledger(bookingId), "REFUND")).toBe(30_000);
+    expect(fake.refunds).toHaveLength(3); // reconcile never submits a refund
+  });
 });
 
 test("reconcile settles a stale order whose webhook never arrived", async () => {
@@ -413,6 +440,15 @@ describe("settlement wiring (T4.2, T4.3)", () => {
       }),
     ).toBe(1);
     expect(await testDb.notification.count({ where: { type: "SESSION_ENDING" } })).toBe(2);
+    const confirmedFor = await testDb.notification.findMany({
+      where: { type: { startsWith: "BOOKING_CONFIRMED_" } },
+      select: { userId: true, type: true },
+    });
+    expect(confirmedFor).toContainEqual({
+      userId: renter.user.id,
+      type: "BOOKING_CONFIRMED_RENTER",
+    });
+    expect(confirmedFor).toHaveLength(2);
   });
 
   test("a confirmed MONTHLY booking creates its agreement", async () => {

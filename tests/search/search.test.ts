@@ -231,3 +231,36 @@ describe("area and ordering", () => {
     expect((await search({ ...near, cursor: "nope" })).status).toBe(400);
   });
 });
+
+describe("ratings (FR-11 summary)", () => {
+  test("cards and the public detail share listingRatingSummary: approved only, one decimal", async () => {
+    const { GET: detail } = await import("@/app/api/listings/[id]/route");
+    const listing = await seedListing();
+    const other = await seedListing();
+    for (const [rating, moderationStatus] of [
+      [5, "APPROVED"],
+      [4, "APPROVED"],
+      [4, "APPROVED"],
+      [1, "PENDING"],
+    ] as const) {
+      const b = await book(listing.id, ist("08:00", 1), ist("09:00", 1), "COMPLETED");
+      await testDb.review.create({
+        data: {
+          bookingId: b.id,
+          listingId: listing.id,
+          authorId: b.renterId,
+          rating,
+          moderationStatus,
+        },
+      });
+    }
+    const { items } = await search(near);
+    const cards = items as unknown as { id: string; rating: unknown }[];
+    expect(cards.find((c) => c.id === listing.id)?.rating).toEqual({ average: 4.3, count: 3 });
+    expect(cards.find((c) => c.id === other.id)?.rating).toEqual({ average: null, count: 0 });
+    const res = await detail(req(`/api/listings/${listing.id}`), {
+      params: Promise.resolve({ id: listing.id }),
+    });
+    expect((await res.json()).rating).toEqual({ average: 4.3, count: 3 });
+  });
+});

@@ -164,3 +164,45 @@ export async function processRefund(refundId: string) {
   await db.$transaction((tx) => applyRefundOutcome(tx, refund.id, r.status, r.id));
   log("info", "refund.submitted", { refundId, providerRefundId: r.id, status: r.status });
 }
+
+/**
+ * Daily, with payment reconciliation: refunds still PENDING/PROCESSING after 30 minutes
+ * (a lost refund webhook or a crashed job) take the provider's outcome. Read-only on the
+ * provider: a refund it never received is left for processRefund to submit.
+ */
+export async function reconcileRefunds(provider = getPaymentProvider(), olderThanMinutes = 30) {
+  const summary = { checked: 0, settled: 0 };
+  if (!provider) return summary;
+  const stale = await db.refund.findMany({
+    where: {
+      status: { in: ["PENDING", "PROCESSING"] },
+      createdAt: { lt: new Date(Date.now() - olderThanMinutes * 60_000) },
+    },
+    include: { payment: { select: { providerPaymentId: true } } },
+    orderBy: { createdAt: "asc" },
+    take: 200,
+  });
+  for (const r of stale) {
+    summary.checked++;
+    try {
+      const found =
+        r.payment.providerPaymentId &&
+        (await provider.fetchRefund(r.payment.providerPaymentId, r.id));
+      if (!found) {
+        log("warn", "refund.reconcile_not_found", { refundId: r.id, status: r.status });
+        continue;
+      }
+      const settled = await db.$transaction(async (tx) => {
+        const changed = await applyRefundOutcome(tx, r.id, found.status, found.id);
+        if (!changed || found.status === "pending") return false;
+        await tx.refund.update({ where: { id: r.id }, data: { reconciledAt: new Date() } });
+        return true;
+      });
+      if (settled) summary.settled++;
+    } catch (e) {
+      log("error", "refund.reconcile_error", { refundId: r.id, error: (e as Error).message });
+    }
+  }
+  log("info", "refund.reconcile_done", summary);
+  return summary;
+}

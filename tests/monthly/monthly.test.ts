@@ -13,10 +13,10 @@ const {
   getMonthlyAgreement,
   handleRenewalReminder,
   handleMonthlyExpire,
+  handleCloseTerm,
 } = await import("@/server/monthly/service");
-const { seedListing, seedQuote, seedUser, seedVehicle, ist, outcome } = await import(
-  "../booking/fixtures"
-);
+const { seedListing, seedQuote, seedUser, seedVehicle, ist, outcome } =
+  await import("../booking/fixtures");
 
 import type { CurrentUser } from "@/server/auth/guards";
 import type { UserRole } from "@/generated/prisma/client";
@@ -119,6 +119,10 @@ describe("monthly rentals (FR-09)", () => {
     expect(reminderJob).not.toBeNull();
     const expectedReminderAt = new Date(endAt.getTime() - 7 * 24 * 60 * 60 * 1000);
     expect(reminderJob!.runAt.getTime()).toBe(expectedReminderAt.getTime());
+    const closeJob = await testDb.job.findUniqueOrThrow({
+      where: { idempotencyKey: `monthly.closeTerm:${booking.id}` },
+    });
+    expect(closeJob.runAt.getTime()).toBe(endAt.getTime());
 
     const expireJob = await testDb.job.findFirst({
       where: { type: "monthly.expire" },
@@ -184,13 +188,7 @@ describe("monthly rentals (FR-09)", () => {
     });
 
     // Attempt renewal: must be blocked with 409
-    const res = await outcome(
-      renewMonthly(
-        asUser(renter.id),
-        agreement.id,
-        "key-renew-conflict",
-      ),
-    );
+    const res = await outcome(renewMonthly(asUser(renter.id), agreement.id, "key-renew-conflict"));
     expect(res.status).toBe(409);
     expect(res.reason).toBe("slot_unavailable");
   });
@@ -217,11 +215,7 @@ describe("monthly rentals (FR-09)", () => {
       },
     });
 
-    const result = await renewMonthly(
-      asUser(renter.id),
-      agreement.id,
-      "key-renew-success",
-    );
+    const result = await renewMonthly(asUser(renter.id), agreement.id, "key-renew-success");
 
     expect(result.hold).toBeDefined();
     expect(result.hold.status).toBe("PENDING_PAYMENT");
@@ -261,13 +255,7 @@ describe("monthly rentals (FR-09)", () => {
       },
     });
 
-    const res = await outcome(
-      renewMonthly(
-        asUser(stranger.id),
-        agreement.id,
-        "key-stranger",
-      ),
-    );
+    const res = await outcome(renewMonthly(asUser(stranger.id), agreement.id, "key-stranger"));
     expect(res.status).toBe(404);
   });
 
@@ -315,6 +303,11 @@ describe("monthly rentals (FR-09)", () => {
       },
     });
     expect(audit2.length).toBeGreaterThanOrEqual(1);
+    const reminders = await testDb.notification.findMany({
+      where: { type: "MONTHLY_RENEWAL_DUE" },
+    });
+    expect(reminders).toHaveLength(1);
+    expect(reminders[0]).toMatchObject({ userId: renter.id });
   });
 
   it("expire marks EXPIRED + audit when unpaid, and does nothing when renewed", async () => {
@@ -347,6 +340,15 @@ describe("monthly rentals (FR-09)", () => {
     });
     expect(expired?.status).toBe("EXPIRED");
     expect(expired?.endedAt?.getTime()).toBe(endAt.getTime());
+    expect(
+      await testDb.notification.findMany({
+        select: { userId: true, type: true },
+        orderBy: { type: "asc" },
+      }),
+    ).toEqual([
+      { userId: listing.hostId, type: "MONTHLY_EXPIRED_HOST" },
+      { userId: renter.id, type: "MONTHLY_EXPIRED_RENTER" },
+    ]);
 
     const audit = await testDb.auditLog.findFirst({
       where: {
@@ -435,11 +437,7 @@ describe("monthly rentals (FR-09)", () => {
       },
     });
 
-    const res = await cancelMonthly(
-      asUser(renter.id),
-      agreement.id,
-      "Moving to another state",
-    );
+    const res = await cancelMonthly(asUser(renter.id), agreement.id, "Moving to another state");
     expect(res.success).toBe(true);
     expect(res.status).toBe("NOTICE_GIVEN");
     expect(new Date(res.endedAt).getTime()).toBe(endAt.getTime());
@@ -458,6 +456,11 @@ describe("monthly rentals (FR-09)", () => {
     });
     expect(audit).not.toBeNull();
     expect(audit?.actorId).toBe(renter.id);
+    const notice = await testDb.notification.findFirstOrThrow({
+      where: { type: "MONTHLY_NOTICE_GIVEN" },
+    });
+    expect(notice.userId).toBe(listing.hostId);
+    expect(JSON.stringify(notice.payload)).not.toContain("Moving to another state");
     expect(audit?.reason).toBe("Moving to another state");
   });
 
@@ -534,10 +537,7 @@ describe("monthly rentals (FR-09)", () => {
     });
 
     // Renter can fetch
-    const history = await getMonthlyAgreement(
-      asUser(renter.id),
-      agreement.id,
-    );
+    const history = await getMonthlyAgreement(asUser(renter.id), agreement.id);
     expect(history.id).toBe(agreement.id);
     expect(history.terms).toHaveLength(1);
     expect(history.terms[0].id).toBe(booking.id);
@@ -547,17 +547,59 @@ describe("monthly rentals (FR-09)", () => {
     expect(history.notices[0].action).toBe("monthly.created");
 
     // Host can also fetch
-    const hostHistory = await getMonthlyAgreement(
-      asUser(listing.hostId, ["HOST"]),
-      agreement.id,
-    );
+    const hostHistory = await getMonthlyAgreement(asUser(listing.hostId, ["HOST"]), agreement.id);
     expect(hostHistory.id).toBe(agreement.id);
 
     // Stranger gets 404
     const stranger = await seedUser();
-    const res = await outcome(
-      getMonthlyAgreement(asUser(stranger.id), agreement.id),
-    );
+    const res = await outcome(getMonthlyAgreement(asUser(stranger.id), agreement.id));
     expect(res.status).toBe(404);
+  });
+
+  it("closeTerm completes the ended term's own booking as system, leaving the renewal alone", async () => {
+    const listing = await seedListing();
+    const renter = await seedUser();
+    const vehicle = await seedVehicle(renter.id);
+    const start1 = new Date(Date.now() - 40 * 24 * 3600_000);
+    const end1 = monthlyTermEnd(start1);
+    const term = (startAt: Date, endAt: Date) =>
+      testDb.booking.create({
+        data: {
+          listingId: listing.id,
+          renterId: renter.id,
+          vehicleId: vehicle.id,
+          rentalType: "MONTHLY",
+          startAt,
+          endAt,
+          blockedUntil: endAt,
+          status: "CONFIRMED",
+          subtotalPaise: 500_000,
+          commissionPaise: 50_000,
+          hostEarningsPaise: 450_000,
+          totalPaise: 500_000,
+        },
+      });
+    const ended = await term(start1, end1);
+    const renewal = await term(end1, monthlyTermEnd(end1));
+
+    await handleCloseTerm(ended.id);
+    await handleCloseTerm(ended.id); // a retried job is a no-op
+    await handleCloseTerm(renewal.id); // not ended yet
+
+    const rows = await testDb.booking.findMany({ select: { id: true, status: true } });
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        { id: ended.id, status: "COMPLETED" },
+        { id: renewal.id, status: "CONFIRMED" },
+      ]),
+    );
+    const audits = await testDb.auditLog.findMany({ where: { action: "booking.transition" } });
+    expect(audits).toHaveLength(1);
+    expect(audits[0]).toMatchObject({
+      targetId: ended.id,
+      actorId: null,
+      reason: "monthly_term_ended",
+      metadata: { from: "CONFIRMED", to: "COMPLETED" },
+    });
   });
 });
