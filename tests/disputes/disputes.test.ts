@@ -11,6 +11,7 @@ const { GET: adminGetRoute } = await import("@/app/api/admin/disputes/[id]/route
 const { POST: resolveRoute } = await import("@/app/api/admin/disputes/[id]/resolve/route");
 const { POST: cancelRoute } = await import("@/app/api/bookings/[id]/cancel/route");
 const { params, seedBooking } = await import("../cancellations/fixtures");
+const { seedQuote } = await import("../booking/fixtures");
 
 beforeEach(async () => {
   await truncateAll();
@@ -222,6 +223,41 @@ describe("admin disputes", () => {
     });
     expect(res.status).toBe(422);
     expect(await statusOf(booking.id)).toBe("DISPUTED");
+  });
+
+  test("a refund larger than the latest capture is split across the booking's payments (H1)", async () => {
+    const { admin, booking, listing, renter, payment, disputeId } = await disputed();
+    const extQuote = await seedQuote({
+      listingId: listing.id,
+      renterId: renter.user.id,
+      vehicleId: null,
+      startAt: booking.endAt,
+      endAt: new Date(booking.endAt.getTime() + 3_600_000),
+    });
+    const ext = await testDb.payment.create({
+      data: {
+        bookingId: booking.id,
+        extensionQuoteId: extQuote.id,
+        providerOrderId: `order_${randomUUID()}`,
+        providerPaymentId: `pay_${randomUUID()}`,
+        amountPaise: 50_000,
+        status: "SUCCEEDED",
+        createdAt: new Date(Date.now() + 1000),
+      },
+    });
+    const res = await resolve(admin.cookie, disputeId, {
+      outcome: "RESOLVED",
+      resolution: "Refund most of it",
+      reason: "Gate never opened",
+      refundPaise: 120_000,
+      bookingOutcome: "CANCELLED",
+    });
+    expect(res.status).toBe(200);
+    const refunds = await testDb.refund.findMany({ where: { payment: { bookingId: booking.id } } });
+    expect(Object.fromEntries(refunds.map((r) => [r.paymentId, r.amountPaise]))).toEqual({
+      [payment!.id]: 100_000,
+      [ext.id]: 20_000,
+    });
   });
 
   test("REJECTED with CANCELLED moves the booking to CANCELLED", async () => {
