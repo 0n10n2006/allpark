@@ -17,3 +17,17 @@ export async function rateLimit(key: string, limit: number, windowSeconds: numbe
   const resetAt = new Date(windowStart.getTime() + windowMs);
   return { ok: count <= limit, remaining: Math.max(0, limit - count), resetAt };
 }
+
+/**
+ * Rate-limit identity for anonymous callers (L3). Assumes one trusted proxy in front of the
+ * app: Vercel sets x-real-ip and overwrites x-forwarded-for with the real client. Behind a
+ * proxy that appends instead, only the last x-forwarded-for hop was written by the proxy;
+ * earlier entries are client-supplied and spoofable, so the first entry is never trusted.
+ */
+export function clientIp(headers: Headers) {
+  return (
+    headers.get("x-real-ip")?.trim() ||
+    headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() ||
+    "unknown"
+  );
+}

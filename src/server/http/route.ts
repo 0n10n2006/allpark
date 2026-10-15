@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { type CurrentUser, getCurrentUser } from "@/server/auth/guards";
 import { errorCode, errorResponse, HttpError, toHttpError } from "./errors";
-import { rateLimit } from "./rate-limit";
+import { clientIp, rateLimit } from "./rate-limit";
 
 type AuthMode = "public" | "user" | "admin";
 
@@ -40,10 +40,6 @@ export function assertSameOrigin(req: Request) {
     throw new HttpError("forbidden", "Cross-origin request rejected");
 }
 
-function clientIp(req: Request) {
-  return req.headers.get("x-forwarded-for")?.split(",")[0].trim() || "unknown";
-}
-
 function log(entry: Record<string, unknown>) {
   console.log(JSON.stringify({ time: new Date().toISOString(), ...entry }));
 }
@@ -73,7 +69,7 @@ export function route<
 
       if (opts.rateLimit) {
         const { name, limit, windowSeconds } = opts.rateLimit;
-        const rl = await rateLimit(`${name}:${user?.id ?? clientIp(req)}`, limit, windowSeconds);
+        const rl = await rateLimit(`${name}:${user?.id ?? clientIp(req.headers)}`, limit, windowSeconds);
         if (!rl.ok) {
           const retryAfter = Math.ceil((rl.resetAt.getTime() - Date.now()) / 1000);
           throw new HttpError("rate_limited", "Too many requests", undefined, {
