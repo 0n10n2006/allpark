@@ -7,7 +7,7 @@ import {
   RentalType,
 } from "../generated/prisma/enums";
 import { IsoDateTime, Money, PaginationQuery, Uuid, page } from "./common";
-import { QuoteTerms } from "./quotes";
+import { QuoteLineItem, QuoteTerms } from "./quotes";
 
 // FR-04, PRD §5. Booking status, payment status, and refund status are separate
 // fields. A hold is a booking in PENDING_PAYMENT with holdExpiresAt.
@@ -64,6 +64,7 @@ export const BookingDetail = z.object({
   commission: Money.nullable(),
   hostEarnings: Money.nullable(),
   terms: QuoteTerms,
+  lineItems: z.array(QuoteLineItem).optional(),
   /** endAt + grace period; drives the session countdown (FR-07). */
   gracePeriodEndsAt: IsoDateTime,
   checkedInAt: IsoDateTime.nullable(),

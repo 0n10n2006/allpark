@@ -1,7 +1,8 @@
 "use client";
 
-import { useId, useRef, useState, useSyncExternalStore } from "react";
+import { Fragment, useId, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
+import { formatINR } from "@/lib/money";
 import Script from "next/script";
 import { toast } from "sonner";
 import {
@@ -677,6 +678,60 @@ function MonthlyCard({ b }: { b: BookingDetail }) {
           Renew for next month
         </Button>
       ) : null}
+    </section>
+  );
+}
+
+export function Receipt({ b }: { b: BookingDetail }) {
+  const lineItems = b.lineItems;
+  return (
+    <section aria-labelledby="receipt-title" className="rounded-xl border p-4">
+      <h2 id="receipt-title" className="text-lg font-semibold">
+        Receipt
+      </h2>
+      <dl className="mt-2 grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-sm">
+        {lineItems && lineItems.length > 0 ? (
+          lineItems.map((item, idx) => (
+            <Fragment key={`${item.code}-${idx}`}>
+              <dt className={item.kind === "fee" || item.kind === "tax" ? "text-muted-foreground" : undefined}>
+                {item.label}
+              </dt>
+              <dd
+                className={`text-right tabular-nums ${
+                  item.kind === "discount" ? "text-emerald-600 dark:text-emerald-400" : ""
+                }`}
+              >
+                {item.kind === "discount" ? "-" : ""}
+                {formatINR(item.amount.paise)}
+              </dd>
+            </Fragment>
+          ))
+        ) : (
+          <>
+            <dt>Parking</dt>
+            <dd className="text-right tabular-nums">{formatINR(b.subtotal.paise)}</dd>
+            {b.renterFee.paise > 0 ? (
+              <>
+                <dt className="text-muted-foreground">Service fee</dt>
+                <dd className="text-right tabular-nums">{formatINR(b.renterFee.paise)}</dd>
+              </>
+            ) : null}
+          </>
+        )}
+        <dt className="border-t pt-1 font-semibold">Total</dt>
+        <dd className="border-t pt-1 text-right font-semibold tabular-nums">
+          {formatINR(b.total.paise)}
+        </dd>
+      </dl>
+      {b.vehicle ? (
+        <p className="text-muted-foreground mt-3 text-sm">
+          Vehicle: {b.vehicle.nickname ? `${b.vehicle.nickname} · ` : ""}
+          {b.vehicle.registration}
+        </p>
+      ) : null}
+      <h3 className="mt-4 text-sm font-semibold">Your terms</h3>
+      <p className="text-muted-foreground mt-1 text-sm">{b.terms.cancellation}</p>
+      <p className="text-muted-foreground mt-1 text-sm">{b.terms.overstay}</p>
     </section>
   );
 }

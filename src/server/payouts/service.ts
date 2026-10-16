@@ -49,7 +49,7 @@ const toAdminPayout = (p: PayoutRow): AdminPayout => ({
 
 /**
  * POST /api/admin/payouts. Locks the requested bookings in id order (no deadlocks between
- * overlapping requests), requires every one to be this host's, COMPLETED, unclaimed, and
+ * overlapping requests), requires every one to be this host's, COMPLETED or CANCELLED, unclaimed, and
  * payable, then claims them all. Any shortfall rolls back with 409, so of two racing
  * payouts over the same booking exactly one wins.
  */
@@ -68,7 +68,7 @@ export async function createPayout(
     const locked = await tx.$queryRaw<{ id: string }[]>`
       SELECT b.id FROM "Booking" b JOIN "Listing" l ON l.id = b."listingId"
       WHERE b.id = ANY(${ids}::uuid[]) AND l."hostId" = ${body.hostId}::uuid
-        AND b.status = 'COMPLETED' AND b."hostPayoutId" IS NULL
+        AND b.status IN ('COMPLETED', 'CANCELLED') AND b."hostPayoutId" IS NULL
       ORDER BY b.id FOR UPDATE OF b`;
     if (locked.length !== ids.length)
       throw notPayable(ids.filter((id) => !locked.some((l) => l.id === id)));
@@ -86,7 +86,7 @@ export async function createPayout(
     });
     const claimed = await tx.$executeRaw`
       UPDATE "Booking" SET "hostPayoutId" = ${p.id}::uuid, "updatedAt" = now()
-      WHERE id = ANY(${ids}::uuid[]) AND "hostPayoutId" IS NULL AND status = 'COMPLETED'`;
+      WHERE id = ANY(${ids}::uuid[]) AND "hostPayoutId" IS NULL AND status IN ('COMPLETED', 'CANCELLED')`;
     if (claimed !== ids.length) throw notPayable(ids);
 
     await tx.auditLog.create({

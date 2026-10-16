@@ -3,6 +3,7 @@ import {
   BookingSummary,
   type ListBookingsQuery,
   type ListBookingsResponse,
+  type QuoteLineItem,
   Uuid,
 } from "@/contracts";
 import {
@@ -69,7 +70,24 @@ const detailInclude = {
   monthlyAgreement: {
     select: { id: true, status: true, currentTermEndAt: true, renewalDueAt: true },
   },
-  quote: { select: { policyVersion: { select: { policy: true } } } },
+  quote: {
+    select: {
+      lineItems: true,
+      policyVersion: { select: { policy: true } },
+    },
+  },
+  payments: {
+    orderBy: { createdAt: "desc" },
+    include: {
+      extensionQuote: { select: { id: true, lineItems: true } },
+      refunds: { orderBy: { createdAt: "desc" }, take: 1 },
+    },
+  },
+  sessionEvents: {
+    where: { type: "EXTENDED" },
+    select: { metadata: true, createdAt: true },
+    orderBy: { createdAt: "asc" },
+  },
 } satisfies Prisma.BookingInclude;
 
 type SummaryRow = Prisma.BookingGetPayload<{ include: typeof summaryInclude }>;
@@ -99,6 +117,9 @@ function summary(b: SummaryRow): BookingSummary {
   };
 }
 
+const excludeCommission = (item: QuoteLineItem) =>
+  item.code !== "commission" && (item as { kind?: string }).kind !== "commission";
+
 async function detail(b: DetailRow, viewer: CurrentUser): Promise<BookingDetail> {
   // Terms as agreed: the policy version the quote was priced under.
   const policy: Policy = b.quote
@@ -108,6 +129,53 @@ async function detail(b: DetailRow, viewer: CurrentUser): Promise<BookingDetail>
   const isRenter = viewer.id === b.renterId;
   const seesMoney = isHost || viewer.roles.includes("ADMIN");
   const l = b.listing;
+
+  const rawQuoteItems = (b.quote?.lineItems as unknown as QuoteLineItem[] | null) ?? [];
+  const quoteItems = Array.isArray(rawQuoteItems)
+    ? rawQuoteItems.filter(excludeCommission)
+    : [];
+
+  const paidExtensionQuotes = b.payments
+    .filter((p) => p.status === "SUCCEEDED" && p.extensionQuote)
+    .map((p) => p.extensionQuote!)
+    .reverse();
+
+  const extensionItems: QuoteLineItem[] = [];
+  const seenQuoteIds = new Set<string>();
+
+  for (const eq of paidExtensionQuotes) {
+    if (seenQuoteIds.has(eq.id)) continue;
+    seenQuoteIds.add(eq.id);
+    const items = (eq.lineItems as unknown as QuoteLineItem[] | null) ?? [];
+    if (Array.isArray(items)) {
+      extensionItems.push(...items.filter(excludeCommission));
+    }
+  }
+
+  const eventQuoteIds: string[] = [];
+  for (const ev of b.sessionEvents) {
+    const meta = ev.metadata as Record<string, unknown> | null;
+    if (meta && typeof meta.quoteId === "string" && !seenQuoteIds.has(meta.quoteId)) {
+      eventQuoteIds.push(meta.quoteId);
+      seenQuoteIds.add(meta.quoteId);
+    }
+  }
+  if (eventQuoteIds.length > 0) {
+    const zeroCostQuotes = await db.priceQuote.findMany({
+      where: { id: { in: eventQuoteIds } },
+      select: { id: true, lineItems: true },
+    });
+    for (const zq of zeroCostQuotes) {
+      const items = (zq.lineItems as unknown as QuoteLineItem[] | null) ?? [];
+      if (Array.isArray(items)) {
+        extensionItems.push(...items.filter(excludeCommission));
+      }
+    }
+  }
+
+  const allLineItems = [...quoteItems, ...extensionItems];
+  const lineItems = b.quote || extensionItems.length > 0 ? allLineItems : undefined;
+
   // Parsing strips any field the contract lacks, so nothing private leaks by accident.
   return BookingDetail.parse({
     ...summary(b),
@@ -122,6 +190,7 @@ async function detail(b: DetailRow, viewer: CurrentUser): Promise<BookingDetail>
       overstay: overstayText(policy),
       gracePeriodMinutes: policy.gracePeriodMinutes,
     },
+    lineItems,
     gracePeriodEndsAt: new Date(
       b.endAt.getTime() + policy.gracePeriodMinutes * 60_000,
     ).toISOString(),

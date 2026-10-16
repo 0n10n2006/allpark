@@ -7,11 +7,10 @@ import { type BookingDetail, Uuid } from "@/contracts";
 import { EmptyState } from "@/components/common/empty-state";
 import { LoadingState } from "@/components/common/loading-state";
 import { MoneyBadges } from "@/components/bookings/booking-card";
-import { BookingSession } from "@/components/bookings/booking-session";
+import { BookingSession, Receipt } from "@/components/bookings/booking-session";
 import { BOOKING_STATUS_LABEL, BOOKING_STATUS_TONE } from "@/components/bookings/labels";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { formatINR } from "@/lib/money";
 import { getCurrentUser } from "@/server/auth/guards";
 import { getBooking } from "@/server/bookings/service";
 import { HttpError } from "@/server/http/errors";
@@ -147,36 +146,3 @@ function AccessCard({ b }: { b: BookingDetail }) {
   );
 }
 
-function Receipt({ b }: { b: BookingDetail }) {
-  return (
-    <section aria-labelledby="receipt-title" className="rounded-xl border p-4">
-      <h2 id="receipt-title" className="text-lg font-semibold">
-        Receipt
-      </h2>
-      {/* ponytail: BookingDetail carries no line items yet, so this shows the stored subtotal/fee/total. */}
-      <dl className="mt-2 grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-sm">
-        <dt>Parking</dt>
-        <dd className="text-right tabular-nums">{formatINR(b.subtotal.paise)}</dd>
-        {b.renterFee.paise > 0 ? (
-          <>
-            <dt>Service fee</dt>
-            <dd className="text-right tabular-nums">{formatINR(b.renterFee.paise)}</dd>
-          </>
-        ) : null}
-        <dt className="border-t pt-1 font-semibold">Total</dt>
-        <dd className="border-t pt-1 text-right font-semibold tabular-nums">
-          {formatINR(b.total.paise)}
-        </dd>
-      </dl>
-      {b.vehicle ? (
-        <p className="text-muted-foreground mt-3 text-sm">
-          Vehicle: {b.vehicle.nickname ? `${b.vehicle.nickname} · ` : ""}
-          {b.vehicle.registration}
-        </p>
-      ) : null}
-      <h3 className="mt-4 text-sm font-semibold">Your terms</h3>
-      <p className="text-muted-foreground mt-1 text-sm">{b.terms.cancellation}</p>
-      <p className="text-muted-foreground mt-1 text-sm">{b.terms.overstay}</p>
-    </section>
-  );
-}

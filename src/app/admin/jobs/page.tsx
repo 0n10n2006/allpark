@@ -23,7 +23,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
 import { StatusBadge } from "@/components/admin/status-badge";
+import { ActionDialog } from "@/components/admin/action-dialog";
 import { EmptyState } from "@/components/common/empty-state";
 import { LoadingState } from "@/components/common/loading-state";
 import { api } from "@/lib/api-client";
@@ -31,6 +33,8 @@ import { formatIST } from "@/lib/time";
 import type {
   AdminJob,
   AdminListJobsResponse,
+  AdminRetryJobBody,
+  AdminRetryNotificationBody,
 } from "@/contracts";
 
 type AdminNotification = {
@@ -79,6 +83,12 @@ function JobsContent() {
   const [notifCursorHistory, setNotifCursorHistory] = useState<string[]>([]);
   const [loadingNotifs, setLoadingNotifs] = useState(true);
   const [notifError, setNotifError] = useState<string | null>(null);
+
+  // Retry dialog state
+  const [retryJobTarget, setRetryJobTarget] = useState<AdminJob | null>(null);
+  const [isRetryingJob, setIsRetryingJob] = useState(false);
+  const [retryNotifTarget, setRetryNotifTarget] = useState<AdminNotification | null>(null);
+  const [isRetryingNotif, setIsRetryingNotif] = useState(false);
 
   const fetchJobs = useCallback(
     async (cursor?: string) => {
@@ -134,13 +144,47 @@ function JobsContent() {
     fetchNotifications();
   }, [fetchNotifications]);
 
+  const handleRetryJobSubmit = async (reason: string) => {
+    if (!retryJobTarget) return;
+    setIsRetryingJob(true);
+    try {
+      const body: AdminRetryJobBody = { reason };
+      await api(`/api/admin/jobs/${retryJobTarget.id}/retry`, "POST", body);
+      toast.success("Job re-queued for execution.");
+      setRetryJobTarget(null);
+      fetchJobs();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to retry job");
+      throw err;
+    } finally {
+      setIsRetryingJob(false);
+    }
+  };
+
+  const handleRetryNotifSubmit = async (reason: string) => {
+    if (!retryNotifTarget) return;
+    setIsRetryingNotif(true);
+    try {
+      const body: AdminRetryNotificationBody = { reason };
+      await api(`/api/admin/notifications/${retryNotifTarget.id}/retry`, "POST", body);
+      toast.success("Notification delivery re-enqueued.");
+      setRetryNotifTarget(null);
+      fetchNotifications();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to retry notification");
+      throw err;
+    } finally {
+      setIsRetryingNotif(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Jobs & Notifications Telemetry</h2>
           <p className="text-muted-foreground text-sm">
-            Monitor dead/failed background jobs and notification delivery failures. Read-only inspection (FR-13).
+            Monitor dead/failed background jobs and notification delivery failures. Retry failed operations with required audit reasons (FR-13).
           </p>
         </div>
       </div>
@@ -148,9 +192,8 @@ function JobsContent() {
       <div className="rounded-xl border bg-muted/40 p-4 flex items-start gap-3">
         <Info className="size-5 text-primary shrink-0 mt-0.5" aria-hidden="true" />
         <p className="text-xs text-muted-foreground leading-relaxed">
-          <strong>Read-Only Inspection:</strong> Background execution and notifications are managed autonomously
-          by the asynchronous queue runners. As no manual retry or re-dispatch API is provisioned in the backend,
-          records are displayed for monitoring and diagnostics.
+          <strong>Queue Recovery (FR-13):</strong> Background jobs and notifications are run asynchronously.
+          Administrators can manually retry DEAD jobs (resetting attempts to 0 and scheduling immediately) or FAILED notifications with an audit reason.
         </p>
       </div>
 
@@ -237,6 +280,7 @@ function JobsContent() {
                       <TableHead scope="col">Scheduled At (IST)</TableHead>
                       <TableHead scope="col">Last Error</TableHead>
                       <TableHead scope="col">Created (IST)</TableHead>
+                      <TableHead scope="col" className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -266,6 +310,20 @@ function JobsContent() {
                         </TableCell>
                         <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
                           {formatIST(new Date(j.createdAt), "dd MMM yyyy, HH:mm")}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {j.status === "DEAD" ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="min-h-11 border-destructive/30 text-destructive hover:bg-destructive/10"
+                              onClick={() => setRetryJobTarget(j)}
+                            >
+                              Retry
+                            </Button>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -384,6 +442,7 @@ function JobsContent() {
                       <TableHead scope="col">Scheduled At (IST)</TableHead>
                       <TableHead scope="col">Sent At (IST)</TableHead>
                       <TableHead scope="col">Created (IST)</TableHead>
+                      <TableHead scope="col" className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -409,6 +468,20 @@ function JobsContent() {
                         </TableCell>
                         <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
                           {formatIST(new Date(n.createdAt), "dd MMM yyyy, HH:mm")}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {n.status === "FAILED" ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="min-h-11 border-destructive/30 text-destructive hover:bg-destructive/10"
+                              onClick={() => setRetryNotifTarget(n)}
+                            >
+                              Retry
+                            </Button>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -452,6 +525,54 @@ function JobsContent() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Retry Job Confirmation Dialog */}
+      <ActionDialog
+        open={!!retryJobTarget}
+        onOpenChange={(open) => !open && setRetryJobTarget(null)}
+        title="Retry Dead Background Job"
+        description="Re-queue this dead job for execution (status reset to PENDING, attempts reset to 0, runAt now). An audit reason is required for compliance (FR-13)."
+        confirmLabel="Retry Job"
+        variant="default"
+        isSubmitting={isRetryingJob}
+        reasonLabel="Audit Reason (Required for FR-13 compliance)"
+        reasonPlaceholder="e.g., Transient network failure resolved, external service restored."
+        onConfirm={handleRetryJobSubmit}
+      >
+        {retryJobTarget && (
+          <div className="mb-4 rounded-lg border bg-muted/40 p-3 text-xs space-y-1">
+            <div className="font-semibold text-primary">{retryJobTarget.type}</div>
+            <div className="text-muted-foreground font-mono">Job ID: {retryJobTarget.id}</div>
+            {retryJobTarget.lastError && (
+              <div className="text-destructive font-mono text-[11px] mt-1 line-clamp-3">
+                Error: {retryJobTarget.lastError}
+              </div>
+            )}
+          </div>
+        )}
+      </ActionDialog>
+
+      {/* Retry Notification Confirmation Dialog */}
+      <ActionDialog
+        open={!!retryNotifTarget}
+        onOpenChange={(open) => !open && setRetryNotifTarget(null)}
+        title="Retry Failed Notification"
+        description="Re-enqueue delivery for this failed notification with the same idempotency key. An audit reason is required for compliance (FR-13)."
+        confirmLabel="Retry Notification"
+        variant="default"
+        isSubmitting={isRetryingNotif}
+        reasonLabel="Audit Reason (Required for FR-13 compliance)"
+        reasonPlaceholder="e.g., Email provider outage resolved, recipient address verified."
+        onConfirm={handleRetryNotifSubmit}
+      >
+        {retryNotifTarget && (
+          <div className="mb-4 rounded-lg border bg-muted/40 p-3 text-xs space-y-1">
+            <div className="font-semibold">{retryNotifTarget.type}</div>
+            <div className="text-muted-foreground font-mono">Notification ID: {retryNotifTarget.id}</div>
+            <div className="text-muted-foreground font-mono">Recipient: {retryNotifTarget.userId}</div>
+          </div>
+        )}
+      </ActionDialog>
     </div>
   );
 }

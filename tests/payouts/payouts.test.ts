@@ -447,4 +447,61 @@ describe("earnings reconcile with the ledger (FR-06 AC6)", () => {
       },
     ]);
   });
+
+  test("partially-retained cancellation: host keeps retained share and is payable once after hold-back", async () => {
+    const { host, listing } = await hostWithListing();
+    const b = await confirmed(listing.id, "10:00", "12:00");
+
+    // Renter cancels late with a 50% refund (₹500 refund on ₹1000 total)
+    await refund(b.paymentId, 50_000);
+    await testDb.booking.update({
+      where: { id: b.bookingId },
+      data: {
+        status: "CANCELLED",
+        cancelledAt: new Date(),
+      },
+    });
+
+    // Before hold-back: retained share (₹450 = 45,000 paise) is in PENDING, not PAYABLE
+    let e = await earnings(host.cookie);
+    expect(e.bookings[0].net.paise).toBe(45_000);
+    expect(e.bookings[0].status).toBe("PENDING");
+    expect(e.pending.paise).toBe(45_000);
+    expect(e.payable.paise).toBe(0);
+
+    // Attempting to create payout before holdback expires fails
+    const prematureRes = await createPayout(host.user.id, [b.bookingId]);
+    expect(prematureRes.status).toBe(409);
+
+    // After hold-back expires (e.g. 48h after cancellation)
+    await testDb.booking.update({
+      where: { id: b.bookingId },
+      data: {
+        cancelledAt: new Date(Date.now() - 48 * HOUR),
+      },
+    });
+
+    e = await earnings(host.cookie);
+    expect(e.bookings[0].status).toBe("PAYABLE");
+    expect(e.payable.paise).toBe(45_000);
+    expect(e.pending.paise).toBe(0);
+
+    // Host retained share is payable and claimed
+    const pRes = await createPayout(host.user.id, [b.bookingId]);
+    expect(pRes.status).toBe(201);
+    const p = await pRes.json();
+    expect(p.amount.paise).toBe(45_000);
+
+    // No-double-payout guarantee: cannot be claimed a second time
+    const dupRes = await createPayout(host.user.id, [b.bookingId]);
+    expect(dupRes.status).toBe(409);
+
+    // Mark paid and verify final state
+    expect((await markPaid(p.id, { providerReference: "UTR_CANCEL_RETAINED", reason })).status).toBe(200);
+    e = await earnings(host.cookie);
+    expect(e.bookings[0].status).toBe("PAID");
+    expect(e.paidOut.paise).toBe(45_000);
+    expect(e.payable.paise).toBe(0);
+    expect(e.pending.paise).toBe(0);
+  });
 });

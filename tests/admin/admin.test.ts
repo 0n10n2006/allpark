@@ -14,6 +14,10 @@ const { GET: getPayments } = await import("@/app/api/admin/payments/route");
 const { GET: getJobs } = await import("@/app/api/admin/jobs/route");
 const { GET: getReviews } = await import("@/app/api/admin/reviews/route");
 const { GET: getStats } = await import("@/app/api/admin/stats/route");
+const { GET: getPhotos } = await import("@/app/api/admin/photos/route");
+const { POST: moderatePhoto } = await import("@/app/api/admin/photos/[id]/moderate/route");
+const { POST: retryJob } = await import("@/app/api/admin/jobs/[id]/retry/route");
+const { POST: retryNotification } = await import("@/app/api/admin/notifications/[id]/retry/route");
 
 beforeEach(() => truncateAll());
 afterAll(() => testDb.$disconnect());
@@ -77,6 +81,42 @@ describe("Admin APIs (T4.6 / FR-13)", () => {
       at(targetId),
     );
     expect(resSuspend.status).toBe(403);
+
+    const resPhotos = await getPhotos(
+      req("/api/admin/photos", { cookie: renter.cookie }),
+      noParams,
+    );
+    expect(resPhotos.status).toBe(403);
+
+    const resModeratePhoto = await moderatePhoto(
+      req(`/api/admin/photos/${targetId}/moderate`, {
+        method: "POST",
+        cookie: renter.cookie,
+        body: { decision: "APPROVED", reason: "Clean photo" },
+      }),
+      at(targetId),
+    );
+    expect(resModeratePhoto.status).toBe(403);
+
+    const resRetryJob = await retryJob(
+      req(`/api/admin/jobs/${targetId}/retry`, {
+        method: "POST",
+        cookie: renter.cookie,
+        body: { reason: "Need to retry" },
+      }),
+      at(targetId),
+    );
+    expect(resRetryJob.status).toBe(403);
+
+    const resRetryNotif = await retryNotification(
+      req(`/api/admin/notifications/${targetId}/retry`, {
+        method: "POST",
+        cookie: renter.cookie,
+        body: { reason: "Need to retry" },
+      }),
+      at(targetId),
+    );
+    expect(resRetryNotif.status).toBe(403);
   });
 
   test("dashboard stats returns open counts", async () => {
@@ -346,5 +386,329 @@ describe("Admin APIs (T4.6 / FR-13)", () => {
     expect(body.items[0].listingTitle).toBe("Koramangala Space");
     expect(body.items[0].moderationStatus).toBe("PENDING");
     expect(body.items[0].rating).toBe(4);
+  });
+
+  test("list photos with status filter and listing title", async () => {
+    const admin = await seedSession(["ADMIN"]);
+    const host = await seedSession(["HOST"]);
+
+    const listing = await testDb.listing.create({
+      data: {
+        hostId: host.user.id,
+        title: "Indiranagar Spot",
+        description: "Open parking space",
+        address: "12th Main Rd",
+        locality: "Indiranagar",
+        city: "Bengaluru",
+        lat: 12.9716,
+        lng: 77.6412,
+        approxLat: 12.971,
+        approxLng: 77.641,
+        spaceType: "OPEN",
+        vehicleTypes: ["HATCHBACK"],
+        status: "PUBLISHED",
+      },
+    });
+
+    const photoPending = await testDb.listingPhoto.create({
+      data: {
+        listingId: listing.id,
+        url: "https://example.com/photo-pending.jpg",
+        publicId: "photo-pending",
+        position: 0,
+        moderationStatus: "PENDING",
+      },
+    });
+
+    await testDb.listingPhoto.create({
+      data: {
+        listingId: listing.id,
+        url: "https://example.com/photo-approved.jpg",
+        publicId: "photo-approved",
+        position: 1,
+        moderationStatus: "APPROVED",
+      },
+    });
+
+    // Default or ?status=PENDING
+    const resPending = await getPhotos(
+      req("/api/admin/photos?status=PENDING", { cookie: admin.cookie }),
+      noParams,
+    );
+    expect(resPending.status).toBe(200);
+    const pendingBody = await resPending.json();
+    expect(pendingBody.items.length).toBe(1);
+    expect(pendingBody.items[0].id).toBe(photoPending.id);
+    expect(pendingBody.items[0].listingTitle).toBe("Indiranagar Spot");
+    expect(pendingBody.items[0].moderationStatus).toBe("PENDING");
+
+    // ?status=APPROVED
+    const resApproved = await getPhotos(
+      req("/api/admin/photos?status=APPROVED", { cookie: admin.cookie }),
+      noParams,
+    );
+    expect(resApproved.status).toBe(200);
+    const approvedBody = await resApproved.json();
+    expect(approvedBody.items.length).toBe(1);
+    expect(approvedBody.items[0].moderationStatus).toBe("APPROVED");
+
+    // All photos without status filter
+    const resAll = await getPhotos(
+      req("/api/admin/photos", { cookie: admin.cookie }),
+      noParams,
+    );
+    expect(resAll.status).toBe(200);
+    const allBody = await resAll.json();
+    expect(allBody.items.length).toBe(2);
+  });
+
+  test("photo moderation: approve and reject write audit log with reason", async () => {
+    const admin = await seedSession(["ADMIN"]);
+    const host = await seedSession(["HOST"]);
+
+    const listing = await testDb.listing.create({
+      data: {
+        hostId: host.user.id,
+        title: "Whitefield Garage",
+        description: "Secure lockup garage",
+        address: "ITPL Main Rd",
+        locality: "Whitefield",
+        city: "Bengaluru",
+        lat: 12.9698,
+        lng: 77.7499,
+        approxLat: 12.969,
+        approxLng: 77.749,
+        spaceType: "COVERED",
+        vehicleTypes: ["SUV"],
+        status: "PUBLISHED",
+      },
+    });
+
+    const photo = await testDb.listingPhoto.create({
+      data: {
+        listingId: listing.id,
+        url: "https://example.com/test-photo.jpg",
+        publicId: "test-photo-public",
+        position: 0,
+        moderationStatus: "PENDING",
+      },
+    });
+
+    // Reject photo
+    const resReject = await moderatePhoto(
+      req(`/api/admin/photos/${photo.id}/moderate`, {
+        method: "POST",
+        cookie: admin.cookie,
+        body: { decision: "REJECTED", reason: "Inappropriate photo content" },
+      }),
+      at(photo.id),
+    );
+    expect(resReject.status).toBe(200);
+    const rejectBody = await resReject.json();
+    expect(rejectBody.ok).toBe(true);
+
+    const dbPhotoAfterReject = await testDb.listingPhoto.findUnique({ where: { id: photo.id } });
+    expect(dbPhotoAfterReject?.moderationStatus).toBe("REJECTED");
+
+    const rejectAudit = await testDb.auditLog.findFirst({
+      where: {
+        action: "photo.moderate",
+        targetId: photo.id,
+      },
+    });
+    expect(rejectAudit).not.toBeNull();
+    expect(rejectAudit?.actorId).toBe(admin.user.id);
+    expect(rejectAudit?.reason).toBe("Inappropriate photo content");
+    expect(rejectAudit?.metadata).toMatchObject({
+      decision: "REJECTED",
+      listingId: listing.id,
+    });
+
+    // Re-moderate to Approved
+    const resApprove = await moderatePhoto(
+      req(`/api/admin/photos/${photo.id}/moderate`, {
+        method: "POST",
+        cookie: admin.cookie,
+        body: { decision: "APPROVED", reason: "Photo verified and approved" },
+      }),
+      at(photo.id),
+    );
+    expect(resApprove.status).toBe(200);
+    const approveBody = await resApprove.json();
+    expect(approveBody.ok).toBe(true);
+
+    const dbPhotoAfterApprove = await testDb.listingPhoto.findUnique({ where: { id: photo.id } });
+    expect(dbPhotoAfterApprove?.moderationStatus).toBe("APPROVED");
+  });
+
+  test("retry dead job resets status to PENDING, attempts to 0, runAt now, and creates audit log", async () => {
+    const admin = await seedSession(["ADMIN"]);
+
+    const job = await testDb.job.create({
+      data: {
+        type: "bookings.expireHolds",
+        payload: {},
+        status: "DEAD",
+        attempts: 5,
+        maxAttempts: 5,
+        lastError: "Connection timeout after 5 attempts",
+        runAt: new Date(Date.now() - 3600000),
+      },
+    });
+
+    const res = await retryJob(
+      req(`/api/admin/jobs/${job.id}/retry`, {
+        method: "POST",
+        cookie: admin.cookie,
+        body: { reason: "Database pool recovered, retrying dead hold expiry job" },
+      }),
+      at(job.id),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.auditLogId).toBeDefined();
+
+    const dbJob = await testDb.job.findUnique({ where: { id: job.id } });
+    expect(dbJob?.status).toBe("PENDING");
+    expect(dbJob?.attempts).toBe(0);
+    expect(dbJob?.lastError).toBeNull();
+    expect(dbJob?.lockedAt).toBeNull();
+    expect(dbJob?.lockedBy).toBeNull();
+    expect(dbJob?.runAt.getTime()).toBeGreaterThan(Date.now() - 10000);
+
+    const audit = await testDb.auditLog.findFirst({
+      where: {
+        action: "job.retry",
+        targetId: job.id,
+      },
+    });
+    expect(audit).not.toBeNull();
+    expect(audit?.actorId).toBe(admin.user.id);
+    expect(audit?.reason).toBe("Database pool recovered, retrying dead hold expiry job");
+    expect(audit?.metadata).toMatchObject({
+      previousStatus: "DEAD",
+      type: "bookings.expireHolds",
+    });
+  });
+
+  test("retry non-dead job returns 409 conflict", async () => {
+    const admin = await seedSession(["ADMIN"]);
+
+    const job = await testDb.job.create({
+      data: {
+        type: "system.noop",
+        payload: {},
+        status: "PENDING",
+        attempts: 0,
+        maxAttempts: 5,
+      },
+    });
+
+    const res = await retryJob(
+      req(`/api/admin/jobs/${job.id}/retry`, {
+        method: "POST",
+        cookie: admin.cookie,
+        body: { reason: "Attempting retry on pending job" },
+      }),
+      at(job.id),
+    );
+    expect(res.status).toBe(409);
+  });
+
+  test("retry failed notification resets status to PENDING, re-enqueues delivery job, and creates audit log", async () => {
+    const admin = await seedSession(["ADMIN"]);
+    const user = await seedSession(["RENTER"]);
+
+    const notification = await testDb.notification.create({
+      data: {
+        userId: user.user.id,
+        type: "booking.confirmed",
+        channel: "EMAIL",
+        payload: {},
+        status: "FAILED",
+        attempts: 5,
+        lastError: "Email send failed: 550 Mailbox unavailable",
+        idempotencyKey: "notif-failed-123",
+      },
+    });
+
+    // Also simulate existing dead delivery job
+    const deliveryKey = `notification:${notification.id}`;
+    await testDb.job.create({
+      data: {
+        type: "notifications.deliver",
+        payload: { notificationId: notification.id },
+        idempotencyKey: deliveryKey,
+        status: "DEAD",
+        attempts: 5,
+        maxAttempts: 5,
+        lastError: "Email send failed",
+      },
+    });
+
+    const res = await retryNotification(
+      req(`/api/admin/notifications/${notification.id}/retry`, {
+        method: "POST",
+        cookie: admin.cookie,
+        body: { reason: "User updated email address and provider issue resolved" },
+      }),
+      at(notification.id),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+
+    // Notification reset
+    const dbNotif = await testDb.notification.findUnique({ where: { id: notification.id } });
+    expect(dbNotif?.status).toBe("PENDING");
+    expect(dbNotif?.attempts).toBe(0);
+    expect(dbNotif?.lastError).toBeNull();
+
+    // Delivery job reset
+    const dbJob = await testDb.job.findUnique({ where: { idempotencyKey: deliveryKey } });
+    expect(dbJob?.status).toBe("PENDING");
+    expect(dbJob?.attempts).toBe(0);
+    expect(dbJob?.lastError).toBeNull();
+    expect(dbJob?.lockedAt).toBeNull();
+
+    // Audit log
+    const audit = await testDb.auditLog.findFirst({
+      where: {
+        action: "notification.retry",
+        targetId: notification.id,
+      },
+    });
+    expect(audit).not.toBeNull();
+    expect(audit?.actorId).toBe(admin.user.id);
+    expect(audit?.reason).toBe("User updated email address and provider issue resolved");
+  });
+
+  test("retry non-failed notification returns 409 conflict", async () => {
+    const admin = await seedSession(["ADMIN"]);
+    const user = await seedSession(["RENTER"]);
+
+    const notification = await testDb.notification.create({
+      data: {
+        userId: user.user.id,
+        type: "booking.confirmed",
+        channel: "EMAIL",
+        payload: {},
+        status: "SENT",
+        sentAt: new Date(),
+        attempts: 1,
+        idempotencyKey: "notif-sent-123",
+      },
+    });
+
+    const res = await retryNotification(
+      req(`/api/admin/notifications/${notification.id}/retry`, {
+        method: "POST",
+        cookie: admin.cookie,
+        body: { reason: "Attempting retry on already sent notification" },
+      }),
+      at(notification.id),
+    );
+    expect(res.status).toBe(409);
   });
 });

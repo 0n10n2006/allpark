@@ -72,8 +72,10 @@ export async function bookingEarnings(f: Filter, tx: Tx = db): Promise<BookingEa
   >`
     SELECT b.id AS "bookingId", l."hostId", l.title AS "listingTitle", b."startAt", b."endAt",
       b.status::text AS "bookingStatus", b."hostPayoutId", hp.status::text AS "payoutStatus",
-      (b.status = 'COMPLETED' AND COALESCE(b."checkedOutAt", b."endAt")
-        <= now() - make_interval(hours => ${payoutHoldbackHours})) AS "pastHoldback",
+      ((b.status = 'COMPLETED' AND COALESCE(b."checkedOutAt", b."endAt")
+        <= now() - make_interval(hours => ${payoutHoldbackHours}))
+       OR (b.status = 'CANCELLED' AND COALESCE(b."cancelledAt", b."endAt")
+        <= now() - make_interval(hours => ${payoutHoldbackHours}))) AS "pastHoldback",
       EXISTS (SELECT 1 FROM "Refund" r JOIN "Payment" p ON p.id = r."paymentId"
         WHERE p."bookingId" = b.id AND p.status = 'SUCCEEDED'
           AND r.status IN ('PENDING', 'PROCESSING')) AS "refundInFlight",
