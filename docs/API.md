@@ -76,6 +76,10 @@ Auth `user` = signed-in session; `admin` = ADMIN role. Mutating admin requests r
 | POST | `/api/admin/disputes/:id/resolve` | admin | params: `IdParams`<br>body: `AdminResolveDisputeBody` | `AdminActionResponse` | T4.4 |
 | GET | `/api/admin/reviews` | admin | query: `AdminListReviewsQuery` | `AdminListReviewsResponse` | T4.6 |
 | POST | `/api/admin/reviews/:id/moderate` | admin | params: `IdParams`<br>body: `AdminModerateReviewBody` | `AdminActionResponse` | T4.6 |
+| GET | `/api/admin/photos` | admin | query: `AdminListPhotosQuery` | `AdminListPhotosResponse` | T5.6 |
+| POST | `/api/admin/photos/:id/moderate` | admin | params: `IdParams`<br>body: `AdminModeratePhotoBody` | `AdminActionResponse` | T5.6 |
+| POST | `/api/admin/jobs/:id/retry` | admin | params: `IdParams`<br>body: `AdminRetryJobBody` | `AdminActionResponse` | T5.6 |
+| POST | `/api/admin/notifications/:id/retry` | admin | params: `IdParams`<br>body: `AdminRetryNotificationBody` | `AdminActionResponse` | T5.6 |
 | GET | `/api/admin/payouts` | admin | query: `AdminListPayoutsQuery` | `AdminListPayoutsResponse` | T4.5 |
 | POST | `/api/admin/payouts` | admin · Idempotency-Key | body: `AdminCreatePayoutBody` | `AdminPayout` | T4.5 |
 | POST | `/api/admin/payouts/:id/mark-paid` | admin · Idempotency-Key | params: `IdParams`<br>body: `AdminMarkPayoutPaidBody` | `AdminActionResponse` | T4.5 |
