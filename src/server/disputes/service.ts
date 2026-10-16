@@ -15,11 +15,10 @@ import type { CurrentUser } from "@/server/auth/guards";
 import { getBooking } from "@/server/bookings/service";
 import { transition } from "@/server/bookings/state";
 import { cancelBookingReminders, sendCancellationUpdate } from "@/server/cancellations/notify";
-import { refundablePayment } from "@/server/cancellations/service";
+import { allocateRefund, refundablePayments, sum } from "@/server/cancellations/service";
 import { db } from "@/server/db";
 import { HttpError } from "@/server/http/errors";
 import { isOurEvidenceUrl } from "@/server/media/evidence";
-import { createRefundTx } from "@/server/payments/refunds";
 
 // FR-08, FR-10, FR-13. A dispute is tracked on its own row; only a booking in session
 // (ACTIVE / GRACE_PERIOD / OVERSTAY) moves to DISPUTED. Resolving never charges the renter.
@@ -241,22 +240,25 @@ export async function resolveDispute(
         },
       );
 
-    let refundId: string | null = null;
+    // Across every SUCCEEDED payment (original + extensions), like cancellations (H1).
+    let refundIds: string[] = [];
     if (body.refundPaise) {
-      const paid = await refundablePayment(tx, d.bookingId);
-      if (!paid)
+      const paid = await refundablePayments(tx, d.bookingId);
+      if (!paid.length)
         throw new HttpError("unprocessable", "This booking has no captured payment to refund", {
           reason: "nothing_to_refund",
         });
-      refundId = (
-        await createRefundTx(tx, {
-          paymentId: paid.payment.id,
-          amountPaise: body.refundPaise,
-          reason: "dispute_resolution",
-          actorId: admin.id,
-          idempotencyKey: `dispute:${id}`,
-        })
-      ).id;
+      const refundable = sum(paid.map((p) => p.refundablePaise));
+      if (body.refundPaise > refundable)
+        throw new HttpError("unprocessable", "Refund exceeds the refundable amount", {
+          reason: "refund_exceeds_captured",
+          refundablePaise: refundable,
+        });
+      refundIds = await allocateRefund(tx, paid, body.refundPaise, {
+        reason: "dispute_resolution",
+        actorId: admin.id,
+        keyPrefix: `dispute:${id}`,
+      });
     }
     if (bookingOutcome) await transition(tx, d.bookingId, bookingOutcome, admin.id, body.reason);
     await tx.dispute.update({
@@ -277,7 +279,7 @@ export async function resolveDispute(
         metadata: {
           bookingId: d.bookingId,
           refundPaise: body.refundPaise ?? null,
-          refundId,
+          refundIds,
           bookingOutcome: bookingOutcome ?? null,
         },
       },

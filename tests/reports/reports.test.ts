@@ -7,7 +7,8 @@ vi.mock("@/server/db", async () => ({ db: (await import("../setup/db")).testDb }
 
 const { POST: createReportRoute } = await import("@/app/api/reports/route");
 const { GET: getAdminReportsRoute } = await import("@/app/api/admin/reports/route");
-const { POST: resolveAdminReportRoute } = await import("@/app/api/admin/reports/[id]/resolve/route");
+const { POST: resolveAdminReportRoute } =
+  await import("@/app/api/admin/reports/[id]/resolve/route");
 
 beforeEach(() => truncateAll());
 afterAll(() => testDb.$disconnect());
@@ -132,77 +133,43 @@ describe("POST /api/reports", () => {
     expect(hostRes.status).toBe(201);
   });
 
-  test("evidence URLs only from our Cloudinary listing/evidence folders", async () => {
+  test("evidence URLs: only our cloud's listing photos or booking evidence uploads (L1)", async () => {
+    vi.stubEnv("CLOUDINARY_CLOUD_NAME", "parkshare-test");
     const listing = await seedTestListing();
     const user = await seedSession(["RENTER"]);
-
-    // Valid Cloudinary evidence URL
-    const validRes = await createReportRoute(
-      req("/api/reports", {
-        method: "POST",
-        cookie: user.cookie,
-        body: {
-          targetType: "LISTING",
-          targetId: listing.id,
-          reason: "INACCURATE_LISTING",
-          description: "The photo does not match the actual gate number.",
-          evidenceUrls: ["https://res.cloudinary.com/demo/image/upload/v1234/evidence/photo1.jpg"],
-        },
-      }),
-      noParams,
-    );
-    expect(validRes.status).toBe(201);
-
-    // Valid Cloudinary listing URL
-    const listingFolderRes = await createReportRoute(
-      req("/api/reports", {
-        method: "POST",
-        cookie: user.cookie,
-        body: {
-          targetType: "LISTING",
-          targetId: listing.id,
-          reason: "INACCURATE_LISTING",
-          description: "The photo does not match the actual gate number.",
-          evidenceUrls: ["https://res.cloudinary.com/demo/image/upload/v1234/listings/photo1.jpg"],
-        },
-      }),
-      noParams,
-    );
-    expect(listingFolderRes.status).toBe(201);
-
-    // Invalid: external domain
-    const badDomainRes = await createReportRoute(
-      req("/api/reports", {
-        method: "POST",
-        cookie: user.cookie,
-        body: {
-          targetType: "LISTING",
-          targetId: listing.id,
-          reason: "INACCURATE_LISTING",
-          description: "The photo does not match the actual gate number.",
-          evidenceUrls: ["https://attacker.example.com/evidence/pic.jpg"],
-        },
-      }),
-      noParams,
-    );
-    expect(badDomainRes.status).toBe(400);
-
-    // Invalid: Cloudinary but outside allowed folders
-    const badFolderRes = await createReportRoute(
-      req("/api/reports", {
-        method: "POST",
-        cookie: user.cookie,
-        body: {
-          targetType: "LISTING",
-          targetId: listing.id,
-          reason: "INACCURATE_LISTING",
-          description: "The photo does not match the actual gate number.",
-          evidenceUrls: ["https://res.cloudinary.com/demo/image/upload/v1234/avatars/user.jpg"],
-        },
-      }),
-      noParams,
-    );
-    expect(badFolderRes.status).toBe(400);
+    const send = (url: string) =>
+      createReportRoute(
+        req("/api/reports", {
+          method: "POST",
+          cookie: user.cookie,
+          body: {
+            targetType: "LISTING",
+            targetId: listing.id,
+            reason: "INACCURATE_LISTING",
+            description: "The photo does not match the actual gate number.",
+            evidenceUrls: [url],
+          },
+        }),
+        noParams,
+      );
+    const ours = "https://res.cloudinary.com/parkshare-test/image/upload";
+    for (const ok of [
+      `${ours}/v1234/listings/${listing.id}/photo1.jpg`,
+      `${ours}/incidents/${listing.id}/abc_DEF-1.webp`,
+    ])
+      expect((await send(ok)).status, ok).toBe(201);
+    for (const bad of [
+      "https://attacker.example.com/evidence/pic.jpg",
+      `https://res.cloudinary.com/attacker/image/upload/listings/${listing.id}/phish.jpg`,
+      `http://res.cloudinary.com/parkshare-test/image/upload/listings/${listing.id}/x.jpg`,
+      `https://res.cloudinary.com/parkshare-test/image/fetch/https://evil.example/listings/${listing.id}/x.jpg`,
+      `${ours}/w_100/listings/${listing.id}/x.jpg`,
+      `${ours}/listings/${listing.id}/x.svg`,
+      `${ours}/v1234/evidence/photo1.jpg`,
+      `${ours}/v1234/avatars/user.jpg`,
+    ])
+      expect((await send(bad)).status, bad).toBe(400);
+    vi.unstubAllEnvs();
   });
 
   test("report rate limit → 429", async () => {
@@ -315,7 +282,9 @@ describe("Admin report queue and resolution", () => {
     expect(updatedReport.resolvedById).toBe(admin.user.id);
 
     // Verify AuditLog
-    const auditEntry = await testDb.auditLog.findUniqueOrThrow({ where: { id: dismissBody.auditLogId } });
+    const auditEntry = await testDb.auditLog.findUniqueOrThrow({
+      where: { id: dismissBody.auditLogId },
+    });
     expect(auditEntry).toMatchObject({
       actorId: admin.user.id,
       action: "report.dismiss",
@@ -364,7 +333,9 @@ describe("Admin report queue and resolution", () => {
     // CRITICAL ACCEPTANCE: Verify that the listing was SUSPENDED!
     const suspendedListing = await testDb.listing.findUniqueOrThrow({ where: { id: listing.id } });
     expect(suspendedListing.status).toBe("SUSPENDED");
-    expect(suspendedListing.suspendedReason).toBe("Confirmed lack of authority from society manager");
+    expect(suspendedListing.suspendedReason).toBe(
+      "Confirmed lack of authority from society manager",
+    );
 
     // Verify that suspendListing wrote its audit log entry as well
     const listingAudit = await testDb.auditLog.findFirst({

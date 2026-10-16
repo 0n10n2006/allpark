@@ -257,8 +257,16 @@ describe("POST /api/webhooks/razorpay", () => {
     expect((await webhook("order.paid", paymentEntity(p))).status).toBe(200);
     expect(await status(bookingId)).toBe("CONFIRMED");
     expect(await ledger(bookingId)).toHaveLength(3);
-    expect(await testDb.providerEvent.count({ where: { eventId } })).toBe(1);
+    expect(await testDb.providerEvent.count()).toBe(2);
     expect(await testDb.refund.count()).toBe(0);
+  });
+
+  test("a replayed body under a new event-id header is still a duplicate (L8)", async () => {
+    const { orderId } = await ordered();
+    const bad = fake.pay(orderId, { status: "failed" });
+    for (const eventId of ["evt_a", "evt_b"])
+      expect((await webhook("payment.failed", paymentEntity(bad), { eventId })).status).toBe(200);
+    expect(await testDb.providerEvent.count()).toBe(1);
   });
 
   test("unknown event → 200, stored, no effect", async () => {

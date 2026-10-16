@@ -35,6 +35,8 @@ export default defineConfig({
       RAZORPAY_KEY_SECRET: "e2e-razorpay-key-secret-not-real",
       RAZORPAY_WEBHOOK_SECRET: "e2e-razorpay-webhook-secret-not-real",
       RAZORPAY_API_URL: `http://127.0.0.1:${port + 1000}`,
+      // The only non-test mode that honours RAZORPAY_API_URL (src/server/payments/provider.ts).
+      E2E: "1",
     } as Record<string, string>,
   },
   projects: [

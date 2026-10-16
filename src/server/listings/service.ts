@@ -76,11 +76,69 @@ export async function setHostVerification(
     status === "VERIFIED" && !user.roles.includes("HOST")
       ? [...user.roles, "HOST" as const]
       : user.roles;
-  const [, log] = await db.$transaction([
-    db.user.update({ where: { id: userId }, data: { hostVerificationStatus: status, roles } }),
-    audit(adminId, "host.verification", "User", userId, reason, { status }),
-  ]);
+  const log = await db.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: userId },
+      data: { hostVerificationStatus: status, roles },
+    });
+    await setOwnerListingsBookable(tx, adminId, userId, "host_unverified", status === "VERIFIED");
+    return tx.auditLog.create({
+      data: {
+        actorId: adminId,
+        action: "host.verification",
+        targetType: "User",
+        targetId: userId,
+        reason,
+        metadata: { status },
+      },
+    });
+  });
   return { auditLogId: log.id };
+}
+
+/**
+ * M1 (FR-01 AC2): a suspended or unverified host's PUBLISHED listings move to SUSPENDED with
+ * `reason`, and back to PUBLISHED when that reason is lifted (manual or report suspensions keep
+ * their own reason and are left alone). A status change rather than an owner-status filter in
+ * search/quote/hold: one write path instead of three read paths, and each listing keeps an
+ * audit row. Existing CONFIRMED bookings are not cancelled automatically (ops decision).
+ */
+export async function setOwnerListingsBookable(
+  tx: Prisma.TransactionClient,
+  actorId: string,
+  hostId: string,
+  reason: "owner_suspended" | "host_unverified",
+  bookable: boolean,
+) {
+  const listings = await tx.listing.findMany({
+    where: bookable
+      ? {
+          hostId,
+          status: "SUSPENDED",
+          suspendedReason: reason,
+          // Only once the host is both verified and unsuspended again.
+          host: { hostVerificationStatus: "VERIFIED", suspendedAt: null },
+        }
+      : { hostId, status: "PUBLISHED" },
+    select: { id: true },
+  });
+  if (!listings.length) return;
+  const ids = listings.map((l) => l.id);
+  await tx.listing.updateMany({
+    where: { id: { in: ids } },
+    data: bookable
+      ? { status: "PUBLISHED", suspendedReason: null }
+      : { status: "SUSPENDED", suspendedReason: reason },
+  });
+  await tx.auditLog.createMany({
+    data: ids.map((targetId) => ({
+      actorId,
+      action: bookable ? "listing.restore" : "listing.suspend",
+      targetType: "Listing",
+      targetId,
+      reason,
+    })),
+  });
 }
 
 // ── Shapes ──

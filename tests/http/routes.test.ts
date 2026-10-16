@@ -109,3 +109,31 @@ describe("POST /api/dev/echo", () => {
     expect(Number(res.headers.get("Retry-After"))).toBeGreaterThan(0);
   });
 });
+
+describe("L3: rate-limit identity and write limits", () => {
+  test("clientIp prefers x-real-ip and never trusts the client-supplied first forwarded hop", async () => {
+    const { clientIp } = await import("@/server/http/rate-limit");
+    expect(clientIp(new Headers({ "x-forwarded-for": "6.6.6.6, 203.0.113.9" }))).toBe(
+      "203.0.113.9",
+    );
+    expect(
+      clientIp(new Headers({ "x-forwarded-for": "6.6.6.6", "x-real-ip": "198.51.100.1" })),
+    ).toBe("198.51.100.1");
+  });
+
+  test("POST /api/me/vehicles is limited per user", async () => {
+    const { POST: addVehicle } = await import("@/app/api/me/vehicles/route");
+    const { cookie } = await seedSession();
+    const add = (i: number) =>
+      addVehicle(
+        req("/api/me/vehicles", {
+          method: "POST",
+          cookie,
+          body: { registration: `MH12AB${String(1000 + i)}`, type: "SEDAN" },
+        }),
+        noParams,
+      );
+    for (let i = 0; i < 30; i++) expect((await add(i)).status).toBe(201);
+    expect((await add(30)).status).toBe(429);
+  });
+});

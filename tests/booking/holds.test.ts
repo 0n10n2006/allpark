@@ -279,6 +279,39 @@ describe("422s with clear reasons", () => {
   });
 });
 
+test("an extension quote can't be redeemed as a standalone hold (M3)", async () => {
+  const listing = await seedListing();
+  const first = await hold(listing, ist("09:00"), ist("10:00"));
+  const vehicleId = first.vehicleId!;
+  const interval = { startAt: ist("10:00"), endAt: ist("11:00") };
+  const ext = await seedQuote({
+    listingId: listing.id,
+    renterId: first.renterId,
+    vehicleId,
+    ...interval,
+  });
+  await testDb.payment.create({
+    data: {
+      bookingId: first.id,
+      extensionQuoteId: ext.id,
+      providerOrderId: "order_ext",
+      amountPaise: ext.totalPaise,
+      status: "ORDER_CREATED",
+    },
+  });
+  const attempt = createHold({
+    listingId: listing.id,
+    renterId: first.renterId,
+    vehicleId,
+    rentalType: "HOURLY",
+    ...interval,
+    quoteId: ext.id,
+    idempotencyKey: "ext-as-hold",
+  });
+  await expect(attempt).rejects.toMatchObject({ status: 422, message: "Quote not found" });
+  expect(await testDb.booking.count()).toBe(1);
+});
+
 describe("bookings.expireHolds sweeper", () => {
   test("flips stale holds to EXPIRED with no booking attempt, and re-enqueues itself", async () => {
     const listing = await seedListing();

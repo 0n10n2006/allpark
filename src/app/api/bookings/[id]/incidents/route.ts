@@ -3,7 +3,12 @@ import { route } from "@/server/http/route";
 import { reportIncident } from "@/server/sessions/service";
 
 export const POST = route(
-  { auth: "user", params: IdParams, body: ReportIncidentBody },
+  {
+    auth: "user",
+    params: IdParams,
+    body: ReportIncidentBody,
+    rateLimit: { name: "incidents.create", limit: 30, windowSeconds: 3600 },
+  },
   async ({ user, params, body }) =>
     Response.json(await reportIncident(user, params.id, body), { status: 201 }),
 );

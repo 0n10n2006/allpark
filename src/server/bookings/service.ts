@@ -35,6 +35,8 @@ const ACCESS_STATUSES: BookingStatus[] = [
   "COMPLETED",
   "DISPUTED",
 ];
+/** L7 (PRD §9): once the session is over the renter keeps access details for a day; the host always. */
+const RENTER_ACCESS_AFTER_END_MS = 24 * 3600_000;
 
 const summaryInclude = {
   listing: {
@@ -204,7 +206,11 @@ async function detail(b: DetailRow, viewer: CurrentUser): Promise<BookingDetail>
       renewalDueAt: b.monthlyAgreement.renewalDueAt?.toISOString() ?? null,
     },
     access:
-      (isRenter || isHost) && ACCESS_STATUSES.includes(b.status)
+      ACCESS_STATUSES.includes(b.status) &&
+      (isHost ||
+        (isRenter &&
+          (!["COMPLETED", "DISPUTED"].includes(b.status) ||
+            Date.now() < b.endAt.getTime() + RENTER_ACCESS_AFTER_END_MS)))
         ? {
             address: l.address,
             lat: l.lat,

@@ -141,6 +141,7 @@ let injected: PaymentProvider | null = null;
 
 /** Tests only: install a fake provider (pass null to restore the env-configured one). */
 export function setPaymentProvider(p: PaymentProvider | null) {
+  if (process.env.NODE_ENV !== "test") throw new Error("setPaymentProvider is test-only");
   injected = p;
 }
 
@@ -154,8 +155,12 @@ export function getPaymentProvider(): PaymentProvider | null {
     RAZORPAY_KEY_ID,
     RAZORPAY_KEY_SECRET,
     RAZORPAY_WEBHOOK_SECRET,
-    // e2e only (a fake Razorpay API under `next dev`); never honoured in production.
-    process.env.NODE_ENV === "production" ? undefined : RAZORPAY_API_URL,
+    // L2 allowlist: tests, or e2e (E2E=1, a fake Razorpay API under `next dev`). An unset
+    // NODE_ENV (e.g. a worker started without it) never qualifies, and production never does.
+    process.env.NODE_ENV === "test" ||
+      (process.env.E2E === "1" && process.env.NODE_ENV === "development")
+      ? RAZORPAY_API_URL
+      : undefined,
   );
 }
 

@@ -120,6 +120,23 @@ describe("GET /api/bookings/:id", () => {
     const admin = await seedSession(["ADMIN"]);
     const asAdmin = BookingDetail.parse(await (await getBooking(admin.cookie, id)).json());
     expect(asAdmin.access).toBeNull();
+
+    // L7: after the session the renter keeps access for 24 h past endAt; the host always.
+    const ended = async (hoursAgo: number) => {
+      const endAt = new Date(Date.now() - hoursAgo * 60 * MIN);
+      const startAt = new Date(endAt.getTime() - 60 * MIN);
+      await testDb.booking.update({
+        where: { id },
+        data: { status: "COMPLETED", startAt, endAt, blockedUntil: endAt },
+      });
+    };
+    const accessOf = async (cookie: string) =>
+      BookingDetail.parse(await (await getBooking(cookie, id)).json()).access;
+    await ended(1);
+    expect(await accessOf(renter.cookie)).not.toBeNull();
+    await ended(25);
+    expect(await accessOf(renter.cookie)).toBeNull();
+    expect(await accessOf(hostCookie)).not.toBeNull();
   });
 
   test("returns lineItems from quote and extensions with commission excluded", async () => {
