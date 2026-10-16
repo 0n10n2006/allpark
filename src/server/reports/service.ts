@@ -5,18 +5,7 @@ import { db } from "@/server/db";
 import { audit } from "@/server/http/audit";
 import { HttpError } from "@/server/http/errors";
 import { suspendListing } from "@/server/listings/service";
-
-export function isAllowedEvidenceUrl(urlString: string): boolean {
-  try {
-    const url = new URL(urlString);
-    if (url.protocol !== "https:" && url.protocol !== "http:") return false;
-    if (url.hostname !== "res.cloudinary.com") return false;
-    // Path must sit under listing/ or evidence/ folders:
-    return /\/(listings|evidence)\//.test(url.pathname);
-  } catch {
-    return false;
-  }
-}
+import { isOurReportEvidenceUrl } from "@/server/media/evidence";
 
 export function toReportReason(category?: string, reason?: string): ReportReason {
   if (reason && Object.values(ReportReason).includes(reason as ReportReason)) {
@@ -42,7 +31,14 @@ export function toReportReason(category?: string, reason?: string): ReportReason
 }
 
 export async function createReport(user: CurrentUser, body: CreateReportBody) {
-  const { targetType, targetId, category, reason: explicitReason, description, evidenceUrls } = body;
+  const {
+    targetType,
+    targetId,
+    category,
+    reason: explicitReason,
+    description,
+    evidenceUrls,
+  } = body;
 
   if (!category && !explicitReason) {
     throw new HttpError("validation_error", "Either category or reason is required");
@@ -51,7 +47,7 @@ export async function createReport(user: CurrentUser, body: CreateReportBody) {
   // 1. Evidence URLs validation: only our Cloudinary listing/evidence folders
   const urls = evidenceUrls ?? [];
   for (const url of urls) {
-    if (!isAllowedEvidenceUrl(url)) {
+    if (!isOurReportEvidenceUrl(url)) {
       throw new HttpError(
         "validation_error",
         "Evidence URLs must be from Cloudinary listing or evidence folders",

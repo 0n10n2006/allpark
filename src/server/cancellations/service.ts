@@ -15,23 +15,8 @@ type Tx = Prisma.TransactionClient;
 /** ACTIVE and later go through disputes; DISPUTED → CANCELLED is an admin decision. */
 const CANCELLABLE: BookingStatus[] = ["PENDING_PAYMENT", "CONFIRMED"];
 
-/** The latest captured payment and what is still refundable on it, or null if nothing was captured. */
-export async function refundablePayment(tx: Tx, bookingId: string) {
-  const payment = await tx.payment.findFirst({
-    where: { bookingId, status: { in: ["SUCCEEDED", "CAPTURED_UNFULFILLED"] } },
-    orderBy: { createdAt: "desc" },
-  });
-  if (!payment) return null;
-  const { _sum } = await tx.refund.aggregate({
-    where: { paymentId: payment.id, status: { not: "FAILED" } },
-    _sum: { amountPaise: true },
-  });
-  // ponytail: refunds only the latest capture; spread across payments if extensions get their own.
-  return { payment, refundablePaise: payment.amountPaise - (_sum.amountPaise ?? 0) };
-}
-
 /** The booking's SUCCEEDED payments (original + paid extensions), oldest first, each with what is still refundable on it. */
-async function refundablePayments(tx: Tx, bookingId: string) {
+export async function refundablePayments(tx: Tx, bookingId: string) {
   const payments = await tx.payment.findMany({
     where: { bookingId, status: "SUCCEEDED" },
     include: { refunds: { where: { status: { not: "FAILED" } }, select: { amountPaise: true } } },
@@ -44,7 +29,35 @@ async function refundablePayments(tx: Tx, bookingId: string) {
   }));
 }
 
-const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
+export const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
+
+/**
+ * Spreads `amountPaise` over `paid` in order, one refund per payment (each capture refunds
+ * against itself), capped at what each has left. Returns the refund ids. Callers check the total.
+ */
+export async function allocateRefund(
+  tx: Tx,
+  paid: Awaited<ReturnType<typeof refundablePayments>>,
+  amountPaise: number,
+  opts: { reason: string; actorId: string; keyPrefix: string },
+) {
+  const ids: string[] = [];
+  let left = amountPaise;
+  for (const p of paid) {
+    const part = Math.min(left, p.refundablePaise);
+    if (part <= 0) continue;
+    const refund = await createRefundTx(tx, {
+      paymentId: p.id,
+      amountPaise: part,
+      reason: opts.reason,
+      actorId: opts.actorId,
+      idempotencyKey: `${opts.keyPrefix}:${p.id}`,
+    });
+    ids.push(refund.id);
+    left -= part;
+  }
+  return ids;
+}
 
 /**
  * POST /api/bookings/:id/cancel (FR-10). Renter: refund by the policy tier the booking was
@@ -103,20 +116,11 @@ export async function cancelBooking(
           }).refundPaise,
         )
       : refundable;
-    // One refund per payment (each capture refunds against itself), capped at what it has left.
-    let left = amountPaise;
-    for (const p of paid) {
-      const part = Math.min(left, p.refundablePaise);
-      if (part <= 0) continue;
-      await createRefundTx(tx, {
-        paymentId: p.id,
-        amountPaise: part,
-        reason: kind,
-        actorId: user.id,
-        idempotencyKey: `cancellation:${id}:${p.id}`,
-      });
-      left -= part;
-    }
+    await allocateRefund(tx, paid, amountPaise, {
+      reason: kind,
+      actorId: user.id,
+      keyPrefix: `cancellation:${id}`,
+    });
     if (kind === "host_cancellation")
       await tx.auditLog.create({
         data: {

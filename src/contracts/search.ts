@@ -16,6 +16,8 @@ const splitComma = z.string().transform((s) => s.split(",").filter(Boolean));
  * against that interval, not just publication status.
  */
 export const SearchListingsQuery = PaginationQuery.extend({
+  /** Opaque keyset cursor (base64url), decoded and checked by the search service. */
+  cursor: z.string().max(200).optional(),
   minLat: z.coerce.number().min(-90).max(90).optional(),
   minLng: z.coerce.number().min(-180).max(180).optional(),
   maxLat: z.coerce.number().min(-90).max(90).optional(),

@@ -11,6 +11,11 @@ export const GET = route(
   },
   async ({ query }) => Response.json(await searchListings(query)),
 );
-export const POST = route({ auth: "user", body: CreateListingBody }, async ({ user, body }) =>
-  Response.json(await createListing(user, body), { status: 201 }),
+export const POST = route(
+  {
+    auth: "user",
+    body: CreateListingBody,
+    rateLimit: { name: "listings.create", limit: 30, windowSeconds: 3600 },
+  },
+  async ({ user, body }) => Response.json(await createListing(user, body), { status: 201 }),
 );

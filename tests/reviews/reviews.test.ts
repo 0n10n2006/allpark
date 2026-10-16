@@ -386,3 +386,13 @@ describe("Admin moderation and rating summary", () => {
     expect(summary).toEqual({ average: 4.5, count: 2 });
   });
 });
+
+test("an invalid pagination cursor is a 400 validation_error, not a 500 (L9)", async () => {
+  const listing = await seedTestListing();
+  const res = await getListingReviewsRoute(
+    req(`/api/listings/${listing.id}/reviews?cursor=x`),
+    at(listing.id),
+  );
+  expect(res.status).toBe(400);
+  expect((await res.json()).error.code).toBe("validation_error");
+});

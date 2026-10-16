@@ -19,7 +19,8 @@ export type IdParams = z.infer<typeof IdParams>;
 
 /** Query strings arrive as strings; every field has a default or is optional. */
 export const PaginationQuery = z.object({
-  cursor: z.string().max(200).optional(),
+  /** The last item's id (L9: anything else is a 400 here, not a 500 from the database). */
+  cursor: Uuid.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 export type PaginationQuery = z.infer<typeof PaginationQuery>;
