@@ -20,4 +20,22 @@ const schema = z.object({
   APP_TIMEZONE: z.string().default("Asia/Kolkata"),
 });
 
-export const env = schema.parse(process.env);
+const PLACEHOLDER = /placeholder|changeme|change-me|replace-me|xxx/i;
+
+/**
+ * L5: in production, reject template values (e.g. .env.example's "replace-me") and short
+ * secrets, so a copied example config fails at boot instead of accepting `Bearer replace-me`.
+ */
+export function parseEnv(source: NodeJS.ProcessEnv) {
+  const env = schema.parse(source);
+  if (source.NODE_ENV !== "production") return env;
+  const bad = Object.entries(env)
+    .filter(([, v]) => typeof v === "string" && PLACEHOLDER.test(v))
+    .map(([k]) => k);
+  for (const k of ["AUTH_SECRET", "CRON_SECRET"] as const)
+    if (env[k].length < 32) bad.push(`${k} (under 32 characters)`);
+  if (bad.length) throw new Error(`Invalid production env: ${bad.join(", ")}`);
+  return env;
+}
+
+export const env = parseEnv(process.env);
