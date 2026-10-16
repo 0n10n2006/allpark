@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatINR } from "@/lib/money";
 import { formatIST, startOfDayIST } from "@/lib/time";
 import { BookingPanel, type OfferedRental } from "./booking-panel";
+import { Reviews } from "./reviews";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -156,6 +157,8 @@ export function ListingDetail({
         </Section>
 
         <AvailabilityPreview availability={availability} now={now} />
+
+        <Reviews listingId={listing.id} />
 
         <div className="border-t pt-4">
           {isSignedIn ? (

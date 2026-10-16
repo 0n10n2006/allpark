@@ -474,9 +474,6 @@ test("8. admin approves the review; it appears on the listing page", async ({
   context,
   baseURL,
 }) => {
-  // Bug: Listing detail page (/listings/[id]) does not render approved reviews
-  test.fail(true, "Bug: Listing page does not render approved reviews from /api/listings/[id]/reviews");
-
   // Get review ID
   const { rows: [review] } = await db.query<{ id: string }>(
     `SELECT id FROM "Review" WHERE "bookingId" = $1 AND "authorId" = $2`,

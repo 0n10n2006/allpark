@@ -172,3 +172,11 @@ test("quote, agree, reserve, checkout; a second renter sees 'just taken'", async
   await first.close();
   await second.close();
 });
+
+test("a listing with no reviews shows 'No reviews yet'", async ({ page }) => {
+  const listing = await seededListing();
+  await db.query(`DELETE FROM "Review" WHERE "listingId" = $1`, [listing.id]);
+  await page.goto(`/listings/${listing.id}`);
+  await expect(page.getByText("No reviews yet")).toBeVisible(SLOW);
+  await expectAccessible(page);
+});
