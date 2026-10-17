@@ -198,11 +198,14 @@ export function BookingPanel({ listingId, offered, vehicles, allowedVehicleTypes
 
   const q = attempt?.quote;
   const inputClass = "border-input bg-background h-11 w-full rounded-lg border px-3";
+  const isTimeError = Boolean(error && error.title === "Check your times");
+  const timeErrorId = `${ids}-time-error`;
 
   return (
     <Panel>
       <form
         className="space-y-4"
+        noValidate
         onSubmit={(e) => {
           e.preventDefault();
           void getPrice();
@@ -245,8 +248,15 @@ export function BookingPanel({ listingId, offered, vehicles, allowedVehicleTypes
                 setMonthStart(e.target.value);
                 changed();
               }}
+              aria-invalid={isTimeError ? true : undefined}
+              aria-describedby={isTimeError ? timeErrorId : undefined}
               className={inputClass}
             />
+            {isTimeError && error ? (
+              <p id={timeErrorId} className="text-destructive text-sm" role="alert">
+                {error.body}
+              </p>
+            ) : null}
             <p className="text-muted-foreground text-xs">
               One month from 00:00 IST on this date. You renew each month yourself.
             </p>
@@ -266,6 +276,8 @@ export function BookingPanel({ listingId, offered, vehicles, allowedVehicleTypes
                   setStart(e.target.value);
                   changed();
                 }}
+                aria-invalid={isTimeError ? true : undefined}
+                aria-describedby={isTimeError ? timeErrorId : undefined}
                 className={inputClass}
               />
             </div>
@@ -282,8 +294,15 @@ export function BookingPanel({ listingId, offered, vehicles, allowedVehicleTypes
                   setEnd(e.target.value);
                   changed();
                 }}
+                aria-invalid={isTimeError ? true : undefined}
+                aria-describedby={isTimeError ? timeErrorId : undefined}
                 className={inputClass}
               />
+              {isTimeError && error ? (
+                <p id={timeErrorId} className="text-destructive text-sm" role="alert">
+                  {error.body}
+                </p>
+              ) : null}
             </div>
           </div>
         )}
@@ -320,6 +339,7 @@ export function BookingPanel({ listingId, offered, vehicles, allowedVehicleTypes
 
         <Button
           type="submit"
+          onClick={() => void getPrice()}
           variant={q ? "outline" : "default"}
           className="h-11 w-full"
           disabled={pending !== null || navigating}
