@@ -196,7 +196,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 /** FR-11: say exactly what was checked, and nothing more. */
-function VerificationBadge({ verified, hostName }: { verified: boolean; hostName: string | null }) {
+export function VerificationBadge({ verified, hostName }: { verified: boolean; hostName: string | null }) {
   return verified ? (
     <p className="flex items-start gap-2 rounded-lg border border-emerald-600/30 bg-emerald-50 p-3 text-sm text-emerald-950 dark:bg-emerald-950 dark:text-emerald-50">
       <BadgeCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
