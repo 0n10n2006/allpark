@@ -1,14 +1,32 @@
 import { spawn, execSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+
+// Load .env if present into process.env so child processes have full config
+if (existsSync(".env")) {
+  for (const line of readFileSync(".env", "utf8").split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed && !trimmed.startsWith("#")) {
+      const idx = trimmed.indexOf("=");
+      if (idx > 0) {
+        const key = trimmed.slice(0, idx).trim();
+        const val = trimmed.slice(idx + 1).trim();
+        if (process.env[key] === undefined) {
+          process.env[key] = val;
+        }
+      }
+    }
+  }
+}
 
 process.env.DEMO_MODE = "1";
 process.env.NEXT_PUBLIC_DEMO_MODE = "1";
 
 console.log("=== ParkShare Demo Mode Setup ===");
 console.log("Ensuring database migrations are up to date...");
-execSync("npx prisma migrate deploy", { stdio: "inherit", env: process.env, shell: true });
+execSync("npm run db:deploy", { stdio: "inherit", env: process.env, shell: true });
 
 console.log("Seeding demo data...");
-execSync("node --env-file-if-exists=.env --import tsx scripts/seed-demo.mjs", {
+execSync("npm run db:seed:demo", {
   stdio: "inherit",
   env: process.env,
   shell: true,
@@ -38,21 +56,17 @@ console.log(`
 Starting Next.js dev server and background job worker...
 `);
 
-const nextProc = spawn("npx", ["next", "dev"], {
+const nextProc = spawn("npm", ["run", "dev"], {
   stdio: "inherit",
   env: process.env,
   shell: true,
 });
 
-const workerProc = spawn(
-  process.execPath,
-  ["--env-file-if-exists=.env", "--import", "tsx", "src/server/jobs/worker-cli.ts"],
-  {
-    stdio: "inherit",
-    env: process.env,
-    shell: true,
-  },
-);
+const workerProc = spawn("npm", ["run", "worker"], {
+  stdio: "inherit",
+  env: process.env,
+  shell: true,
+});
 
 function cleanup() {
   try {
