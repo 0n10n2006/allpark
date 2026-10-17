@@ -25,7 +25,10 @@ async function uploadOne(listingId: string, file: File): Promise<ListingPhoto> {
   form.set("signature", s.signature);
   form.set("public_id", s.publicId);
   if (s.allowedFormats) form.set("allowed_formats", s.allowedFormats);
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${s.cloudName}/image/upload`, {
+  const uploadEndpoint =
+    (s as { uploadUrl?: string }).uploadUrl ??
+    `https://api.cloudinary.com/v1_1/${s.cloudName}/image/upload`;
+  const res = await fetch(uploadEndpoint, {
     method: "POST",
     body: form,
   }).catch(() => null);

@@ -10,6 +10,10 @@ try {
 const port = Number(process.env.E2E_PORT ?? 3000);
 const baseURL = `http://localhost:${port}`;
 
+const isDemoRun =
+  process.env.DEMO_MODE === "1" ||
+  process.argv.some((a) => a === "demo" || a.includes("demo.spec"));
+
 export default defineConfig({
   testDir: "e2e",
   // First request compiles the route in dev mode (slow on Windows); one retry absorbs it.
@@ -28,15 +32,23 @@ export default defineConfig({
       CLOUDINARY_CLOUD_NAME: "e2e-test",
       CLOUDINARY_API_KEY: "000000",
       CLOUDINARY_API_SECRET: "e2e-not-a-secret",
-      // Razorpay too: e2e/checkout-pay.spec.ts serves a fake Razorpay API on port + 1000 (outside the
-      // 3100-3899 worktree range) and
-      // route-mocks checkout.js; signatures use this fake secret.
-      RAZORPAY_KEY_ID: "rzp_test_e2e_fake",
-      RAZORPAY_KEY_SECRET: "e2e-razorpay-key-secret-not-real",
-      RAZORPAY_WEBHOOK_SECRET: "e2e-razorpay-webhook-secret-not-real",
-      RAZORPAY_API_URL: `http://127.0.0.1:${port + 1000}`,
-      // The only non-test mode that honours RAZORPAY_API_URL (src/server/payments/provider.ts).
-      E2E: "1",
+      ...(isDemoRun
+        ? {
+            DEMO_MODE: "1",
+            NEXT_PUBLIC_DEMO_MODE: "1",
+            RAZORPAY_KEY_ID: "",
+            RAZORPAY_KEY_SECRET: "",
+            RAZORPAY_WEBHOOK_SECRET: "",
+            RAZORPAY_API_URL: "",
+            E2E: "",
+          }
+        : {
+            RAZORPAY_KEY_ID: "rzp_test_e2e_fake",
+            RAZORPAY_KEY_SECRET: "e2e-razorpay-key-secret-not-real",
+            RAZORPAY_WEBHOOK_SECRET: "e2e-razorpay-webhook-secret-not-real",
+            RAZORPAY_API_URL: `http://127.0.0.1:${port + 1000}`,
+            E2E: "1",
+          }),
     } as Record<string, string>,
   },
   projects: [
@@ -45,6 +57,7 @@ export default defineConfig({
     {
       name: "mobile",
       dependencies: ["warmup"],
+      testIgnore: /demo\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 375, height: 812 },
@@ -52,6 +65,16 @@ export default defineConfig({
         hasTouch: true,
       },
     },
-    { name: "desktop", dependencies: ["warmup"], use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "desktop",
+      dependencies: ["warmup"],
+      testIgnore: /demo\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "demo",
+      testMatch: /demo\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
   ],
 });

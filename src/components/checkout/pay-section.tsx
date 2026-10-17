@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { api, ApiError } from "@/lib/api-client";
 import { formatINR } from "@/lib/money";
 import { postWithHeaders, reasonOf } from "./api-client";
+import { DemoPaymentPanel } from "./demo-payment-panel";
 
 // FR-06. Order → Razorpay Checkout → confirm-payment → poll until the server says
 // CONFIRMED. The browser never decides the outcome: "confirmed" only comes from the API.
@@ -204,6 +205,20 @@ export function PaySection({
         </AlertDescription>
       </Alert>
     );
+
+  const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
+
+  if (isDemo) {
+    return (
+      <DemoPaymentPanel
+        bookingId={bookingId}
+        totalPaise={totalPaise}
+        disabled={!canPay}
+        onSuccess={() => router.refresh()}
+        onBusyChange={onBusyChange}
+      />
+    );
+  }
 
   return (
     <div className="space-y-3">

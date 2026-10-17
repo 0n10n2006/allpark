@@ -1,5 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import Razorpay from "razorpay";
+import { isDemoMode } from "@/lib/demo";
+import { getDemoProvider } from "./demo-provider";
 
 // FR-06. The only module that talks to Razorpay. Tests inject a fake with
 // setPaymentProvider(); app code never picks one by environment.
@@ -150,7 +152,12 @@ export function getPaymentProvider(): PaymentProvider | null {
   if (injected) return injected;
   const { RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET, RAZORPAY_API_URL } =
     process.env;
-  if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET || !RAZORPAY_WEBHOOK_SECRET) return null;
+  if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET || !RAZORPAY_WEBHOOK_SECRET) {
+    if (isDemoMode()) {
+      return getDemoProvider();
+    }
+    return null;
+  }
   return new RazorpayProvider(
     RAZORPAY_KEY_ID,
     RAZORPAY_KEY_SECRET,

@@ -1,6 +1,7 @@
 import type { CurrentUser } from "@/server/auth/guards";
 import { db } from "@/server/db";
 import { HttpError } from "@/server/http/errors";
+import { isDemoMode } from "@/lib/demo";
 import { signFolderUpload } from "@/server/listings/cloudinary";
 
 // FR-07/FR-11 evidence photos: signed direct uploads into incidents/<bookingId>/, and the
@@ -34,6 +35,12 @@ export const isOurReportEvidenceUrl = (url: string) =>
   matchesUpload(url, `(?:listings|incidents|disputes)/${UUID}`);
 
 function matchesUpload(url: string, folderPattern: string) {
+  if (isDemoMode()) {
+    const demoPattern = new RegExp(
+      `^(?:https?://[^/]+)?/uploads/(?:seed/)?(?:${folderPattern}/)?[A-Za-z0-9_-]+(?:\\.(?:jpg|png|webp))?(?:\\?[\\w=&.-]*)?$`,
+    );
+    if (demoPattern.test(url)) return true;
+  }
   const cloud = process.env.CLOUDINARY_CLOUD_NAME;
   if (!cloud) return false;
   return new RegExp(

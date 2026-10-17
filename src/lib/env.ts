@@ -18,6 +18,7 @@ const schema = z.object({
   NEXT_PUBLIC_MAPBOX_TOKEN: optionalProvider,
   CRON_SECRET: z.string().min(1),
   APP_TIMEZONE: z.string().default("Asia/Kolkata"),
+  DEMO_MODE: optionalProvider,
 });
 
 const PLACEHOLDER = /placeholder|changeme|change-me|replace-me|xxx/i;
@@ -28,6 +29,9 @@ const PLACEHOLDER = /placeholder|changeme|change-me|replace-me|xxx/i;
  */
 export function parseEnv(source: NodeJS.ProcessEnv) {
   const env = schema.parse(source);
+  if (source.DEMO_MODE === "1" && source.NODE_ENV === "production") {
+    throw new Error("DEMO_MODE cannot be enabled in production");
+  }
   if (source.NODE_ENV !== "production") return env;
   const bad = Object.entries(env)
     .filter(([, v]) => typeof v === "string" && PLACEHOLDER.test(v))

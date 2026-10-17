@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import Link from "next/link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { isDemoMode } from "@/lib/demo";
 import { signIn } from "@/server/auth";
 
 export const metadata: Metadata = { title: "Sign in" };
@@ -89,6 +91,20 @@ async function SignInContent({ searchParams }: PageProps<"/sign-in">) {
           Email me a sign-in link
         </Button>
       </form>
+      {isDemoMode() && (
+        <div className="mt-6 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-center">
+          <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Demo mode active</p>
+          <p className="text-muted-foreground mt-1 text-xs">
+            Skip magic link verification and sign in instantly as a test persona.
+          </p>
+          <Link
+            href={`/dev/sign-in?callbackUrl=${encodeURIComponent(callbackUrl)}`}
+            className={buttonVariants({ variant: "outline", className: "mt-3 w-full h-11" })}
+          >
+            Go to demo sign-in
+          </Link>
+        </div>
+      )}
     </section>
   );
 }

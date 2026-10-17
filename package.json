@@ -15,6 +15,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:reset": "prisma migrate reset",
     "db:seed": "node --env-file-if-exists=.env --import tsx prisma/seed.ts",
+    "db:seed:demo": "node --env-file-if-exists=.env --import tsx scripts/seed-demo.mjs",
+    "demo": "node scripts/demo.mjs",
     "db:studio": "prisma studio",
     "worker": "node --env-file-if-exists=.env --import tsx src/server/jobs/worker-cli.ts",
     "setup:worktree": "node scripts/setup-worktree.mjs",

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { v2 as cloudinary } from "cloudinary";
+import { isDemoMode } from "@/lib/demo";
 
 // Read at call time so dev/test without Cloudinary still boots; tests mock this module.
 function config() {
@@ -26,7 +27,24 @@ export function signUpload(listingId: string) {
 /** signUpload for any folder we own (booking evidence uses incidents/<bookingId>). */
 export function signFolderUpload(folder: string) {
   const c = config();
-  if (!c) return null;
+  if (!c) {
+    if (isDemoMode()) {
+      const publicId = `${folder}/${randomUUID()}`;
+      const timestamp = Math.floor(Date.now() / 1000);
+      return {
+        cloudName: "demo",
+        apiKey: "demo",
+        timestamp,
+        signature: "demo",
+        folder,
+        publicId,
+        allowedFormats: ALLOWED_FORMATS,
+        maxFileBytes: MAX_FILE_BYTES,
+        uploadUrl: "/api/dev/uploads",
+      };
+    }
+    return null;
+  }
   const publicId = `${folder}/${randomUUID()}`;
   const timestamp = Math.floor(Date.now() / 1000);
   const signature = cloudinary.utils.api_sign_request(
@@ -48,7 +66,13 @@ export function signFolderUpload(folder: string) {
 /** Delivery URL for an uploaded asset, or null when Cloudinary isn't configured. */
 export function photoUrl(publicId: string) {
   const c = config();
-  return c ? cloudinary.url(publicId, { secure: true, cloud_name: c.cloudName }) : null;
+  if (c) return cloudinary.url(publicId, { secure: true, cloud_name: c.cloudName });
+  if (isDemoMode()) {
+    const base = process.env.AUTH_URL || "http://localhost:3000";
+    const prefix = publicId.startsWith("/uploads/") ? "" : "/uploads/";
+    return `${base}${prefix}${publicId}`;
+  }
+  return null;
 }
 
 /** 503 when Cloudinary env is missing (dev/test). Not an HttpError code, so built here. */

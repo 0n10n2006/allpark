@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import {
   type BookingDetail,
   CreateDisputeBody,
+  type CreatePaymentOrderResponse,
   type ExtendBookingResponse,
   type RenewMonthlyResponse,
 } from "@/contracts";
@@ -16,6 +17,7 @@ import { api, ApiError, newIdempotencyKey } from "@/lib/api-client";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ReviewForm } from "@/components/reviews/review-form";
 import { Button } from "@/components/ui/button";
+import { DemoPaymentPanel } from "@/components/checkout/demo-payment-panel";
 import {
   Dialog,
   DialogClose,
@@ -413,13 +415,19 @@ function ExtendDialog({ b, onDone }: { b: BookingDetail; onDone: () => void }) {
     toLocalInput(new Date(Date.parse(b.endAt) + 60 * MIN).toISOString()),
   );
   const [error, setError] = useState<string | null>(null);
+  const [demoOrder, setDemoOrder] = useState<{ payment: CreatePaymentOrderResponse; newEnd: Date } | null>(null);
   return (
     <ActionDialog
       trigger="Extend"
       title="Extend your booking"
-      submitLabel="Check price"
-      description="We'll check the space is free and show the extra cost before you pay."
+      submitLabel={demoOrder ? "Close" : "Check price"}
+      description={
+        demoOrder
+          ? "Confirm your extension payment below to finalize the extra time."
+          : "We'll check the space is free and show the extra cost before you pay."
+      }
       onSubmit={async (setBusyMessage) => {
+        if (demoOrder) return true;
         let newEnd: Date;
         try {
           newEnd = parseISTLocal(value);
@@ -444,6 +452,13 @@ function ExtendDialog({ b, onDone }: { b: BookingDetail; onDone: () => void }) {
             toast.success("Booking extended.");
             onDone();
             return true;
+          }
+
+          const isDemo =
+            process.env.NEXT_PUBLIC_DEMO_MODE === "1" || res.payment.keyId === "rzp_demo_key";
+          if (isDemo) {
+            setDemoOrder({ payment: res.payment, newEnd });
+            return false;
           }
 
           // Open Razorpay Checkout for the extension payment
@@ -529,24 +544,47 @@ function ExtendDialog({ b, onDone }: { b: BookingDetail; onDone: () => void }) {
         }
       }}
     >
-      <div className="grid gap-2">
-        <Label htmlFor={`${id}-end`}>New end time (IST)</Label>
-        <Input
-          id={`${id}-end`}
-          type="datetime-local"
-          className="h-11"
-          min={toLocalInput(b.endAt)}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? `${id}-err` : undefined}
+      {demoOrder ? (
+        <DemoPaymentPanel
+          bookingId={b.id}
+          totalPaise={demoOrder.payment.amount.paise}
+          orderOverride={demoOrder.payment}
+          onSuccess={async () => {
+            const targetEnd = demoOrder.newEnd.getTime();
+            let currentEnd = Date.parse(b.endAt);
+            const until = Date.now() + 60_000;
+            while (currentEnd < targetEnd && Date.now() < until) {
+              await new Promise((resolveTimeout) => setTimeout(resolveTimeout, 2000));
+              const latest = await api<BookingDetail>(`/api/bookings/${b.id}`).catch(() => null);
+              if (latest) {
+                currentEnd = Date.parse(latest.endAt);
+              }
+            }
+            toast.success("Booking extended.");
+            setDemoOrder(null);
+            onDone();
+          }}
         />
-        {error ? (
-          <p id={`${id}-err`} role="alert" className="text-destructive text-sm">
-            {error}
-          </p>
-        ) : null}
-      </div>
+      ) : (
+        <div className="grid gap-2">
+          <Label htmlFor={`${id}-end`}>New end time (IST)</Label>
+          <Input
+            id={`${id}-end`}
+            type="datetime-local"
+            className="h-11"
+            min={toLocalInput(b.endAt)}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? `${id}-err` : undefined}
+          />
+          {error ? (
+            <p id={`${id}-err`} role="alert" className="text-destructive text-sm">
+              {error}
+            </p>
+          ) : null}
+        </div>
+      )}
     </ActionDialog>
   );
 }

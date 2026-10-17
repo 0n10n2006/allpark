@@ -88,12 +88,25 @@ _Executed successfully during local setup._
 
 Open [http://localhost:3000](http://localhost:3000) (or the specific port assigned in your `.env`, e.g., `http://localhost:3100`).
 
+### 4. Local Demo Mode (Zero External Credentials)
+
+For a complete local click-through of all renter, host, and admin workflows without any external accounts (no Razorpay, Cloudinary, Mapbox, or Resend required):
+
+```bash
+npm run demo
+```
+
+This applies migrations, seeds rich Pune listings and the 4 demo accounts (Riya [Renter], Harsh [Verified Host], Naveen [Unverified Host], Asha [Admin]), and launches `next dev` and the background job worker loop together.
+
+See the complete walkthrough in **[docs/DEMO.md](docs/DEMO.md)**.
+
 ---
 
 ## NPM Scripts
 
 | Script           | Command                                                                     | Description                                                                |
 | ---------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `demo`           | `node scripts/demo.mjs`                                                     | Starts demo mode: runs migrations, seeds demo data, runs dev server & worker.|
 | `dev`            | `next dev`                                                                  | Starts the Next.js development server with Turbopack.                      |
 | `build`          | `next build`                                                                | Compiles the production application bundle.                                |
 | `start`          | `next start`                                                                | Runs the compiled production application.                                  |
@@ -106,6 +119,7 @@ Open [http://localhost:3000](http://localhost:3000) (or the specific port assign
 | `db:deploy`      | `prisma migrate deploy`                                                     | Applies pending migrations in production or CI/CD pipelines.               |
 | `db:reset`       | `prisma migrate reset`                                                      | Drops and recreates the database and applies all migrations.               |
 | `db:seed`        | `node --env-file-if-exists=.env --import tsx prisma/seed.ts`                | Seeds Pune development listings, test users, and policy version 1.         |
+| `db:seed:demo`   | `node --env-file-if-exists=.env --import tsx scripts/seed-demo.mjs`         | Seeds rich demo data (~30 Pune listings, 4 personas, bookings in all states). |
 | `db:studio`      | `prisma studio`                                                             | Opens the Prisma Studio web UI for viewing database records.               |
 | `worker`         | `node --env-file-if-exists=.env --import tsx src/server/jobs/worker-cli.ts` | Runs the background job processor worker polling the `Job` queue every 5s. |
 | `setup:worktree` | `node scripts/setup-worktree.mjs`                                           | Provisions isolated databases, `.env`, runs migrations, and seeds DB.      |
