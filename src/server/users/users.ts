@@ -39,6 +39,7 @@ const profileSelect = {
   name: true,
   email: true,
   phone: true,
+  phoneVerifiedAt: true,
   image: true,
   roles: true,
   hostVerificationStatus: true,
@@ -47,8 +48,9 @@ const profileSelect = {
 
 type ProfileRow = Prisma.UserGetPayload<{ select: typeof profileSelect }>;
 
-const toProfile = (u: ProfileRow): Profile => ({
+const toProfile = ({ phoneVerifiedAt, ...u }: ProfileRow): Profile => ({
   ...u,
+  phoneVerified: phoneVerifiedAt !== null,
   deletionRequestedAt: u.deletionRequestedAt?.toISOString() ?? null,
 });
 

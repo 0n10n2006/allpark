@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import * as admin from "./admin";
+import * as auth from "./auth";
 import * as availability from "./availability";
 import * as bookings from "./bookings";
 import { AdminActionResponse, IdParams, PaginationQuery } from "./common";
@@ -173,7 +174,6 @@ export const endpoints: Endpoint[] = [
     path: "/api/bookings",
     auth: "user",
     task: "T2.1",
-    idempotent: true,
     body: bookings.CreateBookingBody,
     response: bookings.BookingDetail,
   },
@@ -368,6 +368,24 @@ export const endpoints: Endpoint[] = [
     task: "T4.5",
     query: PaginationQuery,
     response: host.ListHostPayoutsResponse,
+  },
+
+  // Auth (phone one-time codes; email magic links are Auth.js's own /api/auth/* routes)
+  {
+    method: "POST",
+    path: "/api/auth/phone/request",
+    auth: "public",
+    task: "FR-01 phone OTP",
+    body: auth.PhoneOtpRequestBody,
+    response: auth.PhoneOtpRequestResponse,
+  },
+  {
+    method: "POST",
+    path: "/api/auth/phone/verify",
+    auth: "public",
+    task: "FR-01 phone OTP",
+    body: auth.PhoneOtpVerifyBody,
+    response: auth.PhoneOtpVerifyResponse,
   },
 
   // Me

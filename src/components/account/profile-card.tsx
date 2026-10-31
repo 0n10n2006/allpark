@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { type Profile, UpdateProfileBody } from "@/contracts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneOtpForm } from "@/components/auth/phone-otp-form";
 import { api } from "@/lib/api-client";
 import { applyServerErrors, Field, Section } from "./field";
 
@@ -25,6 +26,7 @@ export function ProfileCard({
   onSaved: (p: Profile) => void;
 }) {
   const [phone, setPhone] = useState(profile.phone);
+  const [verifying, setVerifying] = useState(false);
   const form = useForm<
     z.input<typeof UpdateProfileBody>,
     unknown,
@@ -39,6 +41,7 @@ export function ProfileCard({
     try {
       const saved = await api<Profile>("/api/me/profile", { method: "PATCH", body });
       setPhone(saved.phone);
+      setVerifying(false);
       onSaved(saved);
       toast.success("Profile saved");
     } catch (e) {
@@ -81,15 +84,44 @@ export function ProfileCard({
             />
           )}
         </Field>
-        {phone && (
-          <p className="text-sm text-amber-700 dark:text-amber-400" role="note">
-            Phone verification pending. We&apos;ll ask you to confirm this number with a code.
+        {phone && profile.phoneVerified && (
+          <p className="text-sm text-green-700 dark:text-green-400" role="note">
+            Number verified.
           </p>
+        )}
+        {phone && !profile.phoneVerified && !verifying && (
+          <div className="flex flex-wrap items-center gap-3" role="note">
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              Not verified yet. Confirm this number with a one-time code.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11"
+              onClick={() => setVerifying(true)}
+            >
+              Verify number
+            </Button>
+          </div>
         )}
         <Button type="submit" className="h-11" disabled={isSubmitting}>
           {isSubmitting ? "Saving…" : "Save profile"}
         </Button>
       </form>
+      {phone && !profile.phoneVerified && verifying && (
+        <div className="mt-4 border-t pt-4">
+          <PhoneOtpForm
+            initialPhone={phone}
+            lockPhone
+            submitLabel="Text me a code"
+            onVerified={() => {
+              setVerifying(false);
+              onSaved({ ...profile, phone, phoneVerified: true });
+              toast.success("Number verified");
+            }}
+          />
+        </div>
+      )}
     </Section>
   );
 }

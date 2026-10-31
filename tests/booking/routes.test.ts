@@ -6,7 +6,7 @@ import { req, seedSession } from "../http/helpers";
 vi.mock("@/server/db", async () => ({ db: (await import("../setup/db")).testDb }));
 
 const { POST: holdRoute } = await import("@/app/api/bookings/hold/route");
-const { GET: listRoute } = await import("@/app/api/bookings/route");
+const { GET: listRoute, POST: createRoute } = await import("@/app/api/bookings/route");
 const { GET: getRoute } = await import("@/app/api/bookings/[id]/route");
 const { GET: availabilityRoute } = await import("@/app/api/listings/[id]/availability/route");
 const { MIN, ist, seedListing, seedQuote, seedVehicle } = await import("./fixtures");
@@ -84,6 +84,68 @@ describe("POST /api/bookings/hold", () => {
   });
 });
 
+describe("POST /api/bookings", () => {
+  const postBooking = (cookie: string, holdId: string) =>
+    createRoute(req("/api/bookings", { method: "POST", cookie, body: { holdId } }), params(""));
+
+  test("live unpaid hold → 202, still PENDING_PAYMENT; never confirms by itself", async () => {
+    const { renter, quote } = await setup();
+    const { id } = await (await postHold(renter.cookie, quote.id)).json();
+    const res = await postBooking(renter.cookie, id);
+    expect(res.status).toBe(202);
+    expect(BookingDetail.parse(await res.json())).toMatchObject({
+      id,
+      status: "PENDING_PAYMENT",
+      access: null,
+    });
+    expect((await testDb.booking.findUniqueOrThrow({ where: { id } })).status).toBe(
+      "PENDING_PAYMENT",
+    );
+  });
+
+  test("payment-confirmed hold → 200 with access details", async () => {
+    const { renter, quote } = await setup();
+    const { id } = await (await postHold(renter.cookie, quote.id)).json();
+    await testDb.booking.update({ where: { id }, data: { status: "CONFIRMED" } });
+    const res = await postBooking(renter.cookie, id);
+    expect(res.status).toBe(200);
+    expect(BookingDetail.parse(await res.json()).access).not.toBeNull();
+  });
+
+  test("expired or failed hold → 409 with a reason", async () => {
+    const { renter, quote } = await setup();
+    const { id } = await (await postHold(renter.cookie, quote.id)).json();
+    await testDb.booking.update({
+      where: { id },
+      data: { holdExpiresAt: new Date(Date.now() - MIN) },
+    });
+    const expired = await postBooking(renter.cookie, id);
+    expect(expired.status).toBe(409);
+    expect((await expired.json()).error.details).toEqual({ reason: "hold_expired" });
+
+    await testDb.booking.update({ where: { id }, data: { status: "PAYMENT_FAILED" } });
+    const failed = await postBooking(renter.cookie, id);
+    expect(failed.status).toBe(409);
+    expect((await failed.json()).error.details).toEqual({ reason: "hold_invalid" });
+  });
+
+  test("someone else's hold or an unknown id → 404; signed out → 401", async () => {
+    const { renter, quote } = await setup();
+    const { id } = await (await postHold(renter.cookie, quote.id)).json();
+    const stranger = await seedSession();
+    expect((await postBooking(stranger.cookie, id)).status).toBe(404);
+    expect((await postBooking(renter.cookie, crypto.randomUUID())).status).toBe(404);
+    expect(
+      (
+        await createRoute(
+          req("/api/bookings", { method: "POST", body: { holdId: id } }),
+          params(""),
+        )
+      ).status,
+    ).toBe(401);
+  });
+});
+
 describe("GET /api/bookings/:id", () => {
   test("another renter gets 404; host and admin can read; access only once CONFIRMED", async () => {
     const { listing, renter, quote } = await setup();
@@ -145,8 +207,18 @@ describe("GET /api/bookings/:id", () => {
       where: { id: quote.id },
       data: {
         lineItems: [
-          { code: "base", label: "2 hours × ₹50", kind: "charge", amount: { paise: 100_000, currency: "INR" } },
-          { code: "commission", label: "Commission (internal)", kind: "fee", amount: { paise: 10_000, currency: "INR" } },
+          {
+            code: "base",
+            label: "2 hours × ₹50",
+            kind: "charge",
+            amount: { paise: 100_000, currency: "INR" },
+          },
+          {
+            code: "commission",
+            label: "Commission (internal)",
+            kind: "fee",
+            amount: { paise: 10_000, currency: "INR" },
+          },
         ],
       },
     });
@@ -165,7 +237,12 @@ describe("GET /api/bookings/:id", () => {
       where: { id: extQuote.id },
       data: {
         lineItems: [
-          { code: "extension", label: "1 hour extension", kind: "charge", amount: { paise: 50_000, currency: "INR" } },
+          {
+            code: "extension",
+            label: "1 hour extension",
+            kind: "charge",
+            amount: { paise: 50_000, currency: "INR" },
+          },
         ],
       },
     });

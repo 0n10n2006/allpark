@@ -30,7 +30,7 @@ Auth `user` = signed-in session; `admin` = ADMIN role. Mutating admin requests r
 | POST | `/api/me/host` | user | body: `BecomeHostBody` | `HostStatusResponse` | T2.3 |
 | POST | `/api/quotes` | user | body: `CreateQuoteBody` | `Quote` | T2.2 |
 | GET | `/api/bookings` | user | query: `ListBookingsQuery` | `ListBookingsResponse` | T2.1 |
-| POST | `/api/bookings` | user · Idempotency-Key | body: `CreateBookingBody` | `BookingDetail` | T2.1 |
+| POST | `/api/bookings` | user | body: `CreateBookingBody` | `BookingDetail` | T2.1 |
 | POST | `/api/bookings/hold` | user · Idempotency-Key | body: `CreateHoldBody` | `BookingDetail` | T2.1 |
 | GET | `/api/bookings/:id` | user | params: `IdParams` | `BookingDetail` | T2.1 |
 | POST | `/api/bookings/:id/cancel` | user · Idempotency-Key | params: `IdParams`<br>body: `CancelBookingBody` | `BookingDetail` | T2.1, T4.4 |
@@ -52,6 +52,8 @@ Auth `user` = signed-in session; `admin` = ADMIN role. Mutating admin requests r
 | POST | `/api/reports` | user | body: `CreateReportBody` | `CreateReportResponse` | T4.4 |
 | GET | `/api/host/earnings` | user | query: `HostEarningsQuery` | `HostEarningsResponse` | T4.5 |
 | GET | `/api/host/payouts` | user | query: `PaginationQuery` | `ListHostPayoutsResponse` | T4.5 |
+| POST | `/api/auth/phone/request` | public | body: `PhoneOtpRequestBody` | `PhoneOtpRequestResponse` | FR-01 phone OTP |
+| POST | `/api/auth/phone/verify` | public | body: `PhoneOtpVerifyBody` | `PhoneOtpVerifyResponse` | FR-01 phone OTP |
 | GET | `/api/me/profile` | user | — | `Profile` | T2.5 |
 | PATCH | `/api/me/profile` | user | body: `UpdateProfileBody` | `Profile` | T2.5 |
 | GET | `/api/me/vehicles` | user | — | `ListVehiclesResponse` | T2.5 |

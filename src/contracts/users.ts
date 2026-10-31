@@ -10,6 +10,8 @@ export const Profile = z.object({
   name: z.string().nullable(),
   email: z.string().nullable(),
   phone: z.string().nullable(),
+  /** True once the current number was confirmed with a one-time code (POST /api/auth/phone/verify). */
+  phoneVerified: z.boolean(),
   image: z.url().nullable(),
   roles: z.array(z.enum(UserRole)),
   hostVerificationStatus: z.enum(HostVerificationStatus),

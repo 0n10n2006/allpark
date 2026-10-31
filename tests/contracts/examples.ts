@@ -137,6 +137,7 @@ const profile = {
   image: null,
   roles: ["RENTER"],
   hostVerificationStatus: "NOT_STARTED",
+  phoneVerified: false,
   deletionRequestedAt: null,
 };
 
@@ -518,6 +519,14 @@ export const examples: Record<
   "PATCH /api/me/preferences": {
     body: { notifications: { marketing: true } },
     response: preferences,
+  },
+  "POST /api/auth/phone/request": {
+    body: { phone: "98123 45678" },
+    response: { sent: true, expiresInSeconds: 600 },
+  },
+  "POST /api/auth/phone/verify": {
+    body: { phone: "+919812345678", code: "042137" },
+    response: { userId: ID, result: "signed_in", isNewUser: true },
   },
   "POST /api/me/deletion-request": { body: {}, response: { deletionRequestedAt: T0 } },
   "GET /api/notifications": {

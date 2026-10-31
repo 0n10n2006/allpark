@@ -133,9 +133,7 @@ async function detail(b: DetailRow, viewer: CurrentUser): Promise<BookingDetail>
   const l = b.listing;
 
   const rawQuoteItems = (b.quote?.lineItems as unknown as QuoteLineItem[] | null) ?? [];
-  const quoteItems = Array.isArray(rawQuoteItems)
-    ? rawQuoteItems.filter(excludeCommission)
-    : [];
+  const quoteItems = Array.isArray(rawQuoteItems) ? rawQuoteItems.filter(excludeCommission) : [];
 
   const paidExtensionQuotes = b.payments
     .filter((p) => p.status === "SUCCEEDED" && p.extensionQuote)
@@ -280,4 +278,32 @@ export async function holdFromQuote(
     idempotencyKey,
   });
   return getBooking(booking.id, user);
+}
+
+/**
+ * POST /api/bookings: turns a hold into the caller's booking. The hold *is* the booking row
+ * (plan §2.1), so this never writes inventory or trusts client state: it re-reads the hold and
+ * reports whether payment has confirmed it (`settled`), it is still awaiting a verified
+ * payment, or it can no longer become a booking. Only the renter who placed the hold may call it.
+ */
+export async function bookingFromHold(
+  user: CurrentUser,
+  holdId: string,
+): Promise<{ booking: BookingDetail; settled: boolean }> {
+  const rows = await db.$queryRaw<
+    { renterId: string; status: BookingStatus; live: boolean }[]
+  >`SELECT "renterId", status, ("holdExpiresAt" IS NOT NULL AND "holdExpiresAt" > now()) AS live
+    FROM "Booking" WHERE id = ${holdId}::uuid`;
+  const hold = rows[0];
+  // Same 404 for a missing hold and someone else's (no existence oracle).
+  if (!hold || hold.renterId !== user.id) throw new HttpError("not_found", "Hold not found");
+  if (ACCESS_STATUSES.includes(hold.status))
+    return { booking: await getBooking(holdId, user), settled: true };
+  if (hold.status === "PENDING_PAYMENT" && hold.live)
+    return { booking: await getBooking(holdId, user), settled: false };
+  const reason =
+    hold.status === "PENDING_PAYMENT" || hold.status === "EXPIRED"
+      ? "hold_expired"
+      : "hold_invalid";
+  throw new HttpError("conflict", "This hold can no longer be booked", { reason });
 }

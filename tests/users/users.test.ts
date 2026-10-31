@@ -65,6 +65,7 @@ describe("profile", () => {
         "image",
         "name",
         "phone",
+        "phoneVerified",
         "roles",
       ].sort(),
     );
@@ -91,7 +92,11 @@ describe("profile", () => {
 
     const res = await patch({ phone: "+917012345678" });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ name: "Asha", phone: "+917012345678" });
+    expect(await res.json()).toMatchObject({
+      name: "Asha",
+      phone: "+917012345678",
+      phoneVerified: false,
+    });
     expect(
       (await testDb.user.findUniqueOrThrow({ where: { id: user.id } })).phoneVerifiedAt,
     ).toBeNull();

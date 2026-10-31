@@ -69,7 +69,7 @@ describe("registry", () => {
     for (const k of prd) expect(keys).toContain(k);
   });
 
-  test("admin paths use admin auth; only search, listing detail, availability, and the webhook are public", () => {
+  test("admin paths use admin auth; only search, listing detail, availability, phone sign-in, and the webhook are public", () => {
     for (const e of endpoints)
       if (e.path.startsWith("/api/admin/")) expect(e.auth, key(e)).toBe("admin");
     expect(
@@ -82,6 +82,8 @@ describe("registry", () => {
       "GET /api/listings/:id",
       "GET /api/listings/:id/availability",
       "GET /api/listings/:id/reviews",
+      "POST /api/auth/phone/request",
+      "POST /api/auth/phone/verify",
       "POST /api/webhooks/razorpay",
     ]);
   });

@@ -12,7 +12,7 @@ ParkShare supports hourly, daily, multi-day, weekly, and monthly reservations. T
 - **Language:** TypeScript 5 (Strict Mode)
 - **Styling & UI:** Tailwind CSS v4, Base UI / Radix primitives, Lucide icons, Sonner toasts
 - **Database & ORM:** PostgreSQL 16 with `btree_gist` extension, [Prisma 7](https://www.prisma.io/) with `@prisma/adapter-pg` driver adapter
-- **Authentication:** [NextAuth.js v5](https://authjs.dev/) (Auth.js beta) with Prisma adapter
+- **Authentication:** [NextAuth.js v5](https://authjs.dev/) (Auth.js beta) with Prisma adapter: email magic links, plus phone one-time codes behind an `SmsSender` interface (console in dev; production needs a DLT-registered SMS provider, see `src/server/auth/sms.ts`)
 - **Payments:** Razorpay Orders, Hosted Checkout, Webhooks, and Refunds
 - **Geospatial & Maps:** Mapbox GL (`mapbox-gl`, `react-map-gl`) with coordinate fuzzing for unbooked listings
 - **Media Storage:** Cloudinary (direct client uploads with server-signed HMAC signatures)

@@ -41,8 +41,8 @@ const emailProvider = Resend({
   ),
 });
 
-// ponytail: phone OTP (FR-01, decision Q4) plugs in here as a second provider
-// once an SMS provider with DLT registration is chosen.
+// Phone OTP (FR-01, decision Q4) is not an Auth.js provider: Credentials can't create database
+// sessions. See src/server/auth/phone-otp.ts and /api/auth/phone/*.
 
 export const authConfig = {
   adapter: PrismaAdapter(db as unknown as Parameters<typeof PrismaAdapter>[0]),

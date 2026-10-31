@@ -15,3 +15,4 @@ export * from "./users";
 export * from "./host";
 export * from "./notifications";
 export * from "./admin";
+export * from "./auth";
